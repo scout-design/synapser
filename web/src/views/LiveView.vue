@@ -69,7 +69,22 @@ const filteredItems = computed(() => {
 const formatTime = (time) => {
   if (!time) return ''
   const date = new Date(time)
-  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+  const now = new Date()
+  const diff = now - date
+  
+  // 1分钟内
+  if (diff < 60 * 1000) return 'just now'
+  // 1小时内
+  if (diff < 60 * 60 * 1000) return `${Math.floor(diff / (60 * 1000))}m ago`
+  // 24小时内
+  if (diff < 24 * 60 * 60 * 1000) return `${Math.floor(diff / (60 * 60 * 1000))}h ago`
+  // 超过24小时显示日期和时间
+  return date.toLocaleString('en-US', { 
+    month: 'short', 
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit'
+  })
 }
 
 // 国家代码转国旗 emoji
