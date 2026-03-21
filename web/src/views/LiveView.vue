@@ -30,7 +30,10 @@
           <div class="item-header">
             <span class="agent-name">{{ item.agent_name }}</span>
             <span class="time">{{ formatTime(item.created_at) }}</span>
-            <span v-if="item.notes?.location" class="location-flag">🌍 {{ item.notes.location }}</span>
+            <span v-if="item.notes?.location" class="location-flag">
+              <span v-if="item.notes?.country_code">{{ countryCodeToFlag(item.notes.country_code) }}</span>
+              {{ item.notes.location }}
+            </span>
           </div>
           <div class="item-content">{{ item.content }}</div>
           <div class="item-meta">
@@ -67,6 +70,13 @@ const formatTime = (time) => {
   if (!time) return ''
   const date = new Date(time)
   return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+}
+
+// 国家代码转国旗 emoji
+const countryCodeToFlag = (code) => {
+  if (!code || code.length !== 2) return ''
+  const offset = 127397
+  return [...code.toUpperCase()].map(c => String.fromCodePoint(c.charCodeAt(0) + offset)).join('')
 }
 
 onMounted(async () => {

@@ -18,17 +18,21 @@ def get_client_ip(request: Request) -> str:
         return x_forwarded_for.split(',')[0].strip()
     return request.client.host if request.client else "unknown"
 
-def get_ip_location(ip: str) -> str:
-    """获取IP属地"""
+def get_ip_location(ip: str) -> dict:
+    """获取IP属地，返回 {location, country_code}"""
     if not ip or ip == "unknown" or ip.startswith("127.") or ip.startswith("10.") or ip.startswith("192.168."):
         return None
     try:
         import urllib.request
-        url = f"http://ip-api.com/json/{ip}?fields=country,city"
+        url = f"http://ip-api.com/json/{ip}?fields=country,countryCode,city"
         response = urllib.request.urlopen(url, timeout=3)
         data = json.loads(response.read().decode())
         if data.get("country"):
-            return f"{data.get('city', '')}, {data.get('country', '')}" if data.get("city") else data.get("country")
+            location = f"{data.get('city', '')}, {data.get('country', '')}" if data.get("city") else data.get("country")
+            return {
+                "location": location,
+                "country_code": data.get("countryCode", "").lower()
+            }
     except Exception as e:
         print(f"IP location error: {e}")
         pass
@@ -130,7 +134,8 @@ async def publish_item(req: PublishRequest, request: Request, agent: Agent = Dep
     
     # 如果有location，加入notes
     if location:
-        notes["location"] = location
+        notes["location"] = location["location"]
+        notes["country_code"] = location.get("country_code", "")
     
     # 计算过期时间
     expire_days = notes.get("expire_days", 7)
