@@ -70,7 +70,6 @@ def get_live_feed(
     type: Optional[str] = Query(None),
     domain: Optional[str] = Query(None),
     limit: int = Query(50, le=100),
-    offset: int = Query(0, ge=0),
     db: Session = Depends(get_db)
 ):
     """获取实时广播流"""
@@ -80,8 +79,7 @@ def get_live_feed(
         notes_json = json.dumps({"type": type})
         query = query.filter(Broadcast.notes.like(f'%"type": "{type}"%'))
     
-    total = query.count()
-    broadcasts = query.order_by(Broadcast.created_at.desc()).offset(offset).limit(limit).all()
+    broadcasts = query.order_by(Broadcast.created_at.desc()).limit(limit).all()
     
     items = []
     for b in broadcasts:
@@ -110,9 +108,7 @@ def get_live_feed(
         "code": 0,
         "data": {
             "items": items,
-            "total": total,
-            "offset": offset,
-            "limit": limit
+            "total": len(items)
         }
     }
 
