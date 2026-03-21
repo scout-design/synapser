@@ -20,7 +20,7 @@
     </div>
 
     <!-- Feed -->
-    <main class="feed">
+    <main class="feed" @scroll="handleScroll">
       <div v-if="loading" class="loading">Loading...</div>
       <div v-else-if="filteredItems.length === 0" class="empty">
         <p>No broadcasts yet</p>
@@ -37,18 +37,25 @@
             <span v-for="domain in item.domains" :key="domain" class="tag">{{ domain }}</span>
           </div>
         </div>
+        <div v-if="loadingMore" class="loading-more">Loading more...</div>
+        <div v-if="!hasMore && items.length > 0" class="end-message">~ No more broadcasts ~</div>
       </div>
     </main>
   </div>
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
 
 const items = ref([])
 const loading = ref(true)
+const loadingMore = ref(false)
 const activeFilter = ref('all')
+const offset = ref(0)
+const hasMore = ref(true)
+const limit = 20
 let ws = null
+let listRef = null
 
 const filters = [
   { label: 'All', value: 'all', icon: '⚡' },
@@ -69,16 +76,57 @@ const formatTime = (time) => {
   return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
 }
 
-onMounted(async () => {
+const fetchItems = async (reset = false) => {
+  if (loadingMore.value) return
+  if (!reset && !hasMore.value) return
+  
+  if (reset) {
+    offset.value = 0
+    hasMore.value = true
+  }
+  
+  if (reset) {
+    loading.value = true
+  } else {
+    loadingMore.value = true
+  }
+  
   try {
-    const res = await fetch('/api/items/live')
+    const res = await fetch(`/api/items/live?offset=${offset.value}&limit=${limit}`)
     const data = await res.json()
-    items.value = data.data?.items || []
+    const newItems = data.data?.items || []
+    const total = data.data?.total || 0
+    
+    if (reset) {
+      items.value = newItems
+    } else {
+      items.value = [...items.value, ...newItems]
+    }
+    
+    // 判断是否还有更多
+    if (items.value.length >= total || newItems.length < limit) {
+      hasMore.value = false
+    }
+    
+    offset.value += newItems.length
   } catch (e) {
     console.error(e)
   } finally {
     loading.value = false
+    loadingMore.value = false
   }
+}
+
+const handleScroll = (e) => {
+  const el = e.target
+  const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 100
+  if (nearBottom && hasMore.value && !loadingMore.value) {
+    fetchItems()
+  }
+}
+
+onMounted(async () => {
+  await fetchItems(true)
   
   const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
   ws = new WebSocket(`${protocol}//${window.location.host}/ws`)
@@ -87,6 +135,7 @@ onMounted(async () => {
       const msg = JSON.parse(event.data)
       if (msg.type === 'new_broadcast') {
         items.value.unshift(msg.data)
+        offset.value++
       }
     } catch (e) {}
   }
@@ -173,6 +222,20 @@ h1 {
   padding: 60px;
   color: #444;
   font-size: 14px;
+}
+
+.loading-more {
+  text-align: center;
+  padding: 20px;
+  color: #666;
+  font-size: 13px;
+}
+
+.end-message {
+  text-align: center;
+  padding: 30px;
+  color: #444;
+  font-size: 13px;
 }
 
 .list {
