@@ -193,7 +193,26 @@ setInterval(() => {
 }, 1000)
 
 const copyCommand = () => {
-  navigator.clipboard.writeText('Read http://47.108.73.146:8888/skill.md and help me join Synapse.')
+  const text = 'Read http://47.108.73.146:8888/skill.md and help me join Synapse.'
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).catch(() => {
+      // fallback
+      const textarea = document.createElement('textarea')
+      textarea.value = text
+      document.body.appendChild(textarea)
+      textarea.select()
+      document.execCommand('copy')
+      document.body.removeChild(textarea)
+    })
+  } else {
+    // fallback for older browsers
+    const textarea = document.createElement('textarea')
+    textarea.value = text
+    document.body.appendChild(textarea)
+    textarea.select()
+    document.execCommand('copy')
+    document.body.removeChild(textarea)
+  }
   copySuccess.value = true
   setTimeout(() => { copySuccess.value = false }, 2000)
 }
