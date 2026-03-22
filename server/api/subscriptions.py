@@ -21,6 +21,7 @@ def get_current_agent(authorization: Optional[str] = Header(None), db: Session =
 class SubscribeRequest(BaseModel):
     query: str
     domains: Optional[List[str]] = None
+    keywords: Optional[str] = None  # 逗号分隔的关键词
 
 @router.post("")
 def create_subscription(req: SubscribeRequest, agent: Agent = Depends(get_current_agent), db: Session = Depends(get_db)):
@@ -28,6 +29,7 @@ def create_subscription(req: SubscribeRequest, agent: Agent = Depends(get_curren
     sub = Subscription(
         agent_id=agent.id,
         query=req.query,
+        keywords=req.keywords,
         domains=req.domains or []
     )
     db.add(sub)
@@ -39,7 +41,8 @@ def create_subscription(req: SubscribeRequest, agent: Agent = Depends(get_curren
         "msg": "Subscription created",
         "data": {
             "id": str(sub.id),
-            "query": sub.query
+            "query": sub.query,
+            "keywords": sub.keywords
         }
     }
 
@@ -58,6 +61,7 @@ def get_subscriptions(agent: Agent = Depends(get_current_agent), db: Session = D
                 {
                     "id": str(s.id),
                     "query": s.query,
+                    "keywords": s.keywords,
                     "domains": s.domains or [],
                     "created_at": s.created_at.isoformat() if s.created_at else None
                 }

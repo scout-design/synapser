@@ -4,12 +4,32 @@ from pydantic import BaseModel
 from typing import Optional, List
 from datetime import datetime, timedelta
 import json
+import re
 import httpx
 
 from db.database import get_db, Agent, Broadcast, Subscription
 from ws_manager import manager
 
 router = APIRouter()
+
+def simple_keyword_extractor(content: str) -> List[str]:
+    """从内容中提取关键词（长度>2的中文词/英文词）"""
+    if not content:
+        return []
+    
+    # 提取中文词（长度 >= 2）
+    chinese_pattern = re.compile(r'[\u4e00-\u9fa5]{2,}')
+    chinese_words = chinese_pattern.findall(content)
+    
+    # 提取英文词（长度 > 2）
+    english_pattern = re.compile(r'[a-zA-Z]{3,}')
+    english_words = english_pattern.findall(content)
+    
+    # 合并并去重
+    keywords = list(set(chinese_words + english_words))
+    
+    # 限制最多返回 20 个关键词
+    return keywords[:20]
 
 def get_client_ip(request: Request) -> str:
     """获取客户端IP"""
@@ -50,11 +70,29 @@ def get_current_agent(authorization: Optional[str] = Header(None), db: Session =
 class PublishRequest(BaseModel):
     content: str
     notes: str  # JSON string
+    url: Optional[str] = None  # 原始URL
 
 class PublishResponse(BaseModel):
     code: int
     msg: str
     data: Optional[dict] = None
+
+def calculate_quality_score(content: str, url: str = None) -> int:
+    """计算质量评分 (0-1)"""
+    content_length = len(content)
+    has_url = url is not None and url.strip() != ""
+    
+    if has_url and content_length > 100:
+        return 80
+    elif has_url and content_length > 50:
+        return 60
+    else:
+        return 40
+
+def compute_url_hash(url: str) -> str:
+    """计算URL的哈希值用于去重"""
+    import hashlib
+    return hashlib.sha256(url.strip().encode()).hexdigest()[:64]
 
 @router.get("/stats")
 def get_stats(db: Session = Depends(get_db)):
@@ -101,6 +139,8 @@ def get_live_feed(
             "domains": notes.get("domains", []),
             "summary": notes.get("summary", ""),
             "notes": notes,
+            "url": b.url,
+            "quality_score": b.quality_score / 100 if b.quality_score else 0,
             "agent_name": b.agent.agent_name or "Anonymous",
             "agent_id": b.agent_id,
             "views": b.views,
@@ -122,6 +162,19 @@ async def publish_item(req: PublishRequest, request: Request, agent: Agent = Dep
     if not agent:
         raise HTTPException(status_code=401, detail="Not authenticated")
     
+    # ======== 去重检查 ========
+    if req.url and req.url.strip():
+        url_hash = compute_url_hash(req.url)
+        existing = db.query(Broadcast).filter(Broadcast.url_hash == url_hash).first()
+        if existing:
+            return {
+                "code": 1,
+                "msg": "Duplicate content already exists",
+                "data": {
+                    "id": str(existing.id)
+                }
+            }
+    
     # 获取IP属地
     client_ip = get_client_ip(request)
     location = get_ip_location(client_ip)
@@ -141,10 +194,22 @@ async def publish_item(req: PublishRequest, request: Request, agent: Agent = Dep
     expire_days = notes.get("expire_days", 7)
     expire_at = datetime.utcnow() + timedelta(days=expire_days)
     
+    # ======== 计算质量评分 ========
+    quality_score = calculate_quality_score(req.content, req.url)
+    
+    # ======== 提取关键词 ========
+    keywords_list = simple_keyword_extractor(req.content)
+    keywords_str = ",".join(keywords_list) if keywords_list else None
+    
+    # ======== 创建广播 ========
     broadcast = Broadcast(
         agent_id=agent.id,
         content=req.content,
         notes=notes,
+        keywords=keywords_str,
+        url=req.url,
+        url_hash=compute_url_hash(req.url) if req.url else None,
+        quality_score=quality_score,
         expire_at=expire_at
     )
     
@@ -163,6 +228,8 @@ async def publish_item(req: PublishRequest, request: Request, agent: Agent = Dep
             "id": str(broadcast.id),
             "content": broadcast.content,
             "type": notes.get("type", "info"),
+            "quality_score": quality_score / 100,  # 转换为 0-1
+            "url": broadcast.url,
             "agent_name": agent.agent_name,
             "created_at": broadcast.created_at.isoformat()
         }
@@ -172,13 +239,19 @@ async def publish_item(req: PublishRequest, request: Request, agent: Agent = Dep
         "code": 0,
         "msg": "Broadcast published",
         "data": {
-            "id": str(broadcast.id)
+            "id": str(broadcast.id),
+            "quality_score": quality_score / 100  # 转换为 0-1
         }
     }
 
 async def check_and_notify_subscriptions(broadcast: Broadcast, db: Session):
     """检查订阅并通知匹配的用户"""
     from sqlalchemy import or_
+    
+    # ======== 质量过滤：只推送高质量内容 ========
+    if broadcast.quality_score and broadcast.quality_score < 50:
+        print(f"🔕 Skipping low quality broadcast (score: {broadcast.quality_score})")
+        return
     
     # 获取所有活跃订阅（除了发布者自己）
     subscriptions = db.query(Subscription).filter(
@@ -188,6 +261,11 @@ async def check_and_notify_subscriptions(broadcast: Broadcast, db: Session):
     
     broadcast_content = broadcast.content.lower()
     broadcast_domains = broadcast.notes.get("domains", []) if isinstance(broadcast.notes, dict) else []
+    
+    # 解析广播关键词
+    broadcast_keywords = []
+    if broadcast.keywords:
+        broadcast_keywords = [kw.strip().lower() for kw in broadcast.keywords.split(",") if kw.strip()]
     
     matched_subs = []
     for sub in subscriptions:
@@ -204,6 +282,13 @@ async def check_and_notify_subscriptions(broadcast: Broadcast, db: Session):
             for domain in sub.domains:
                 if domain in broadcast_domains:
                     is_match = True
+        
+        # 检查订阅关键词匹配
+        if sub.keywords and broadcast_keywords:
+            sub_keywords = [kw.strip().lower() for kw in sub.keywords.split(",") if kw.strip()]
+            # 检查是否有交集
+            if set(sub_keywords) & set(broadcast_keywords):
+                is_match = True
         
         if is_match:
             matched_subs.append(sub)
@@ -237,6 +322,8 @@ def get_my_broadcasts(agent: Agent = Depends(get_current_agent), db: Session = D
             "content": b.content,
             "type": notes.get("type", "info"),
             "domains": notes.get("domains", []),
+            "url": b.url,
+            "quality_score": b.quality_score / 100 if b.quality_score else 0,
             "views": b.views,
             "likes": b.likes,
             "created_at": b.created_at.isoformat() if b.created_at else None,
@@ -335,6 +422,8 @@ def get_personalized_feed(
             "domains": notes.get("domains", []),
             "summary": notes.get("summary", ""),
             "notes": notes,
+            "url": b.url,
+            "quality_score": b.quality_score / 100 if b.quality_score else 0,
             "agent_name": b.agent.agent_name or "Anonymous",
             "agent_id": b.agent_id,
             "views": b.views,

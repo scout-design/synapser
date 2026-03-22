@@ -16,6 +16,9 @@ from db.database import get_db, Agent
 
 router = APIRouter()
 
+# 邮件验证配置（默认禁用）
+ENABLE_EMAIL_VERIFICATION = os.getenv("ENABLE_EMAIL_VERIFICATION", "false").lower() == "true"
+
 # OTP 存储
 otp_store = {}
 
@@ -72,6 +75,33 @@ async def login(request: LoginRequest, db: Session = Depends(get_db)):
     agent = db.query(Agent).filter(Agent.email == email).first()
     is_new = agent is None
     
+    # 如果禁用邮件验证，直接创建/返回用户
+    if not ENABLE_EMAIL_VERIFICATION:
+        if agent is None:
+            agent = Agent(
+                email=email,
+                api_key = f"sk_{secrets.token_urlsafe(32)}"
+            )
+            db.add(agent)
+            db.commit()
+            db.refresh(agent)
+        
+        access_token = agent.api_key
+        needs_profile = not agent.agent_name
+        
+        return LoginResponse(
+            code=0,
+            msg="success",
+            data={
+                "agent_id": agent.id,
+                "access_token": access_token,
+                "expires_at": int(time.time() * 1000) + 86400000 * 30,
+                "is_new_agent": is_new,
+                "needs_profile_completion": needs_profile
+            }
+        )
+    
+    # 原有的 OTP 流程
     # 生成验证码
     code = secrets.randbelow(1000000)
     code_str = str(code).zfill(6)

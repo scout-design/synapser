@@ -1,0 +1,319 @@
+from fastapi import APIRouter, Depends, HTTPException, Query, Header
+from sqlalchemy.orm import Session
+from pydantic import BaseModel
+from typing import Optional, List
+from datetime import datetime
+import json
+import hashlib
+
+from db.database import get_db, Agent
+
+router = APIRouter()
+
+# 动态导入避免循环引用
+from sqlalchemy import Column, Integer, String, Text, DateTime, Boolean, JSON, create_engine
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import sessionmaker
+
+DATABASE_URL = "sqlite:///./synapse.db"
+engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+Base = declarative_base()
+
+class RSSSource(Base):
+    __tablename__ = "rss_sources"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    agent_id = Column(Integer, nullable=True)  # 创建者，可为null表示系统源
+    name = Column(String(255))
+    url = Column(String(512), unique=True, index=True)
+    url_hash = Column(String(64), index=True)
+    description = Column(Text, nullable=True)
+    fetch_interval = Column(Integer, default=3600)  # 抓取间隔(秒)
+    last_fetch_at = Column(DateTime, nullable=True)
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    
+    @property
+    def url_hash_value(self):
+        return hashlib.sha256(self.url.strip().encode()).hexdigest()[:64]
+
+# 确保表存在
+Base.metadata.create_all(bind=engine)
+
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
+# Schema
+class SourceCreate(BaseModel):
+    name: str
+    url: str
+    description: Optional[str] = None
+    fetch_interval: int = 3600
+
+class SourceUpdate(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+    fetch_interval: Optional[int] = None
+    is_active: Optional[bool] = None
+
+class SourceResponse(BaseModel):
+    id: int
+    agent_id: Optional[int]
+    name: str
+    url: str
+    description: Optional[str]
+    fetch_interval: int
+    last_fetch_at: Optional[datetime]
+    is_active: bool
+    created_at: datetime
+    
+    class Config:
+        from_attributes = True
+
+def get_current_agent(authorization: Optional[str] = Header(None), db: Session = Depends(get_db)):
+    if not authorization or not authorization.startswith("Bearer "):
+        return None
+    
+    token = authorization.replace("Bearer ", "")
+    agent = db.query(Agent).filter(Agent.api_key == token).first()
+    return agent
+
+# ============ RSS 源管理 API ============
+
+@router.get("", response_model=dict)
+def list_sources(
+    is_active: Optional[bool] = Query(None),
+    limit: int = Query(50, le=100),
+    db: Session = Depends(get_db)
+):
+    """获取 RSS 源列表"""
+    query = db.query(RSSSource)
+    
+    if is_active is not None:
+        query = query.filter(RSSSource.is_active == is_active)
+    
+    sources = query.order_by(RSSSource.created_at.desc()).limit(limit).all()
+    
+    items = []
+    for s in sources:
+        items.append({
+            "id": s.id,
+            "agent_id": s.agent_id,
+            "name": s.name,
+            "url": s.url,
+            "description": s.description,
+            "fetch_interval": s.fetch_interval,
+            "last_fetch_at": s.last_fetch_at.isoformat() if s.last_fetch_at else None,
+            "is_active": s.is_active,
+            "created_at": s.created_at.isoformat() if s.created_at else None
+        })
+    
+    return {
+        "code": 0,
+        "data": {
+            "items": items,
+            "total": len(items)
+        }
+    }
+
+@router.post("", response_model=dict)
+def create_source(
+    source: SourceCreate,
+    agent: Agent = Depends(get_current_agent),
+    db: Session = Depends(get_db)
+):
+    """添加 RSS 源"""
+    url_hash = hashlib.sha256(source.url.strip().encode()).hexdigest()[:64]
+    
+    # 检查是否已存在
+    existing = db.query(RSSSource).filter(
+        (RSSSource.url == source.url) | (RSSSource.url_hash == url_hash)
+    ).first()
+    
+    if existing:
+        raise HTTPException(status_code=400, detail="Source already exists")
+    
+    new_source = RSSSource(
+        agent_id=agent.id if agent else None,
+        name=source.name,
+        url=source.url,
+        url_hash=url_hash,
+        description=source.description,
+        fetch_interval=source.fetch_interval
+    )
+    
+    db.add(new_source)
+    db.commit()
+    db.refresh(new_source)
+    
+    return {
+        "code": 0,
+        "msg": "Source added",
+        "data": {
+            "id": new_source.id,
+            "name": new_source.name,
+            "url": new_source.url
+        }
+    }
+
+@router.get("/{source_id}", response_model=dict)
+def get_source(source_id: int, db: Session = Depends(get_db)):
+    """获取单个 RSS 源"""
+    source = db.query(RSSSource).filter(RSSSource.id == source_id).first()
+    if not source:
+        raise HTTPException(status_code=404, detail="Source not found")
+    
+    return {
+        "code": 0,
+        "data": {
+            "id": source.id,
+            "agent_id": source.agent_id,
+            "name": source.name,
+            "url": source.url,
+            "description": source.description,
+            "fetch_interval": source.fetch_interval,
+            "last_fetch_at": source.last_fetch_at.isoformat() if source.last_fetch_at else None,
+            "is_active": source.is_active,
+            "created_at": source.created_at.isoformat() if source.created_at else None
+        }
+    }
+
+@router.put("/{source_id}", response_model=dict)
+def update_source(
+    source_id: int,
+    source: SourceUpdate,
+    agent: Agent = Depends(get_current_agent),
+    db: Session = Depends(get_db)
+):
+    """更新 RSS 源"""
+    existing = db.query(RSSSource).filter(RSSSource.id == source_id).first()
+    if not existing:
+        raise HTTPException(status_code=404, detail="Source not found")
+    
+    # 只能修改自己创建的源（或者没有agent_id的系统源）
+    if agent and existing.agent_id and existing.agent_id != agent.id:
+        raise HTTPException(status_code=403, detail="Not authorized")
+    
+    if source.name is not None:
+        existing.name = source.name
+    if source.description is not None:
+        existing.description = source.description
+    if source.fetch_interval is not None:
+        existing.fetch_interval = source.fetch_interval
+    if source.is_active is not None:
+        existing.is_active = source.is_active
+    
+    db.commit()
+    db.refresh(existing)
+    
+    return {
+        "code": 0,
+        "msg": "Source updated",
+        "data": {
+            "id": existing.id,
+            "name": existing.name
+        }
+    }
+
+@router.delete("/{source_id}", response_model=dict)
+def delete_source(
+    source_id: int,
+    agent: Agent = Depends(get_current_agent),
+    db: Session = Depends(get_db)
+):
+    """删除 RSS 源"""
+    existing = db.query(RSSSource).filter(RSSSource.id == source_id).first()
+    if not existing:
+        raise HTTPException(status_code=404, detail="Source not found")
+    
+    # 只能删除自己创建的源
+    if agent and existing.agent_id and existing.agent_id != agent.id:
+        raise HTTPException(status_code=403, detail="Not authorized")
+    
+    db.delete(existing)
+    db.commit()
+    
+    return {
+        "code": 0,
+        "msg": "Source deleted"
+    }
+
+# ============ RSS 抓取功能 ============
+
+def fetch_rss_feed(url: str) -> dict:
+    """简单的 RSS 抓取"""
+    try:
+        import urllib.request
+        import xml.etree.ElementTree as ET
+        
+        headers = {'User-Agent': 'Synapse/1.0'}
+        req = urllib.request.Request(url, headers=headers)
+        response = urllib.request.urlopen(req, timeout=30)
+        content = response.read().decode('utf-8')
+        
+        # 解析 XML
+        root = ET.fromstring(content)
+        
+        items = []
+        # 尝试 RSS 2.0 格式
+        channel = root.find('channel')
+        if channel is not None:
+            for item in channel.findall('item'):
+                title = item.find('title')
+                link = item.find('link')
+                description = item.find('description')
+                pubDate = item.find('pubDate')
+                
+                items.append({
+                    "title": title.text if title is not None else "",
+                    "link": link.text if link is not None else "",
+                    "description": description.text if description is not None else "",
+                    "pubDate": pubDate.text if pubDate is not None else ""
+                })
+        
+        return {
+            "success": True,
+            "items": items,
+            "count": len(items)
+        }
+    except Exception as e:
+        return {
+            "success": False,
+            "error": str(e),
+            "items": [],
+            "count": 0
+        }
+
+@router.post("/{source_id}/fetch", response_model=dict)
+def fetch_source(
+    source_id: int,
+    agent: Agent = Depends(get_current_agent),
+    db: Session = Depends(get_db)
+):
+    """手动抓取 RSS 源"""
+    source = db.query(RSSSource).filter(RSSSource.id == source_id).first()
+    if not source:
+        raise HTTPException(status_code=404, detail="Source not found")
+    
+    if not source.is_active:
+        raise HTTPException(status_code=400, detail="Source is inactive")
+    
+    result = fetch_rss_feed(source.url)
+    
+    # 更新最后抓取时间
+    source.last_fetch_at = datetime.utcnow()
+    db.commit()
+    
+    return {
+        "code": 0,
+        "msg": f"Fetched {result.get('count', 0)} items",
+        "data": {
+            "items": result.get("items", [])[:10],  # 返回前10条
+            "count": result.get("count", 0)
+        }
+    }

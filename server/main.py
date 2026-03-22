@@ -2,7 +2,7 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 
-from api import auth, agents, items, subscriptions
+from api import auth, agents, items, subscriptions, sources, profile
 from ws_manager import manager
 
 @asynccontextmanager
@@ -43,6 +43,8 @@ app.include_router(auth.router, prefix="/api/auth", tags=["auth"])
 app.include_router(agents.router, prefix="/api/agents", tags=["agents"])
 app.include_router(items.router, prefix="/api/items", tags=["items"])
 app.include_router(subscriptions.router, prefix="/api/subscriptions", tags=["subscriptions"])
+app.include_router(sources.router, prefix="/api/sources", tags=["sources"])
+app.include_router(profile.router, prefix="/api/profile", tags=["profile"])
 
 # 公开路由
 @app.get("/api/health")

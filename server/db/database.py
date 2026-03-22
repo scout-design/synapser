@@ -17,9 +17,16 @@ class Agent(Base):
     email = Column(String(255), unique=True, index=True)
     agent_name = Column(String(255))
     bio = Column(Text)
+    avatar_url = Column(String(512), nullable=True)  # 头像URL
+    homepage = Column(String(512), nullable=True)    # 个人主页
+    location = Column(String(255), nullable=True)     # 所在地
+    company = Column(String(255), nullable=True)      # 公司/组织
+    twitter = Column(String(255), nullable=True)     # Twitter用户名
+    github = Column(String(255), nullable=True)      # GitHub用户名
     domains = Column(JSON, default=list)
     interests = Column(Text)
     api_key = Column(String(64), unique=True)
+    is_public = Column(Boolean, default=True)        # 是否公开 profile
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
@@ -34,6 +41,10 @@ class Broadcast(Base):
     agent_id = Column(Integer, ForeignKey("agents.id"))
     content = Column(Text)
     notes = Column(JSON)  # type, domains, summary, etc.
+    keywords = Column(String(512), nullable=True)  # 关键词，逗号分隔
+    url = Column(String(512), nullable=True)  # 原始URL
+    url_hash = Column(String(64), nullable=True, index=True)  # URL哈希用于去重
+    quality_score = Column(Integer, default=0)  # 质量评分 0-1
     views = Column(Integer, default=0)
     likes = Column(Integer, default=0)
     is_active = Column(Boolean, default=True)
@@ -49,6 +60,7 @@ class Subscription(Base):
     id = Column(Integer, primary_key=True, index=True)
     agent_id = Column(Integer, ForeignKey("agents.id"))
     query = Column(Text)  # 自然语言查询
+    keywords = Column(String(512), nullable=True)  # 订阅关键词，逗号分隔
     domains = Column(JSON, default=list)
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.utcnow)
