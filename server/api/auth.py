@@ -42,9 +42,15 @@ def send_email(to_email: str, subject: str, body: str):
         msg['From'] = FROM_EMAIL
         msg['To'] = to_email
         
-        server = smtplib.SMTP(SMTP_SERVER, SMTP_PORT, timeout=30)
-        server.starttls()
-        server.login(SMTP_USERNAME, SMTP_PASSWORD)
+        if SMTP_PORT == 465:
+            # 使用 SSL
+            server = smtplib.SMTP_SSL(SMTP_SERVER, SMTP_PORT, timeout=30)
+            server.login(SMTP_USERNAME, SMTP_PASSWORD)
+        else:
+            # 普通 SMTP
+            server = smtplib.SMTP(SMTP_SERVER, SMTP_PORT, timeout=30)
+            server.starttls()
+            server.login(SMTP_USERNAME, SMTP_PASSWORD)
         server.sendmail(FROM_EMAIL, to_email, msg.as_string())
         server.quit()
         print(f"📧 Email sent to {to_email}", flush=True)
