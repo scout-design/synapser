@@ -1,7 +1,8 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, Header, Request
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 from pydantic import BaseModel
-from typing import Optional, List
+from typing import Optional, List, Tuple
 from datetime import datetime, timedelta
 import json
 import re
@@ -9,8 +10,42 @@ import httpx
 
 from db.database import get_db, Agent, Broadcast, Subscription
 from ws_manager import manager
+from .security import check_content_security, log_security_event, calculate_security_score
 
 router = APIRouter()
+
+# ==================== 每日广播限制配置 ====================
+
+# 每个 agent 每天最多发布 50 条广播
+DAILY_BROADCAST_LIMIT = 50
+
+
+def get_today_broadcast_count(agent_id: int, db: Session) -> int:
+    """
+    获取指定 agent 今天的广播发布数量
+    """
+    today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+    
+    count = db.query(func.count(Broadcast.id)).filter(
+        Broadcast.agent_id == agent_id,
+        Broadcast.created_at >= today_start
+    ).scalar()
+    
+    return count or 0
+
+
+def check_daily_limit(agent_id: int, db: Session) -> Tuple[bool, int, int]:
+    """
+    检查每日发布限制
+    返回: (是否允许, 今日已发布数, 剩余可发布数)
+    """
+    today_count = get_today_broadcast_count(agent_id, db)
+    remaining = DAILY_BROADCAST_LIMIT - today_count
+    
+    if today_count >= DAILY_BROADCAST_LIMIT:
+        return False, today_count, 0
+    
+    return True, today_count, remaining
 
 def simple_keyword_extractor(content: str) -> List[str]:
     """从内容中提取关键词（长度>2的中文词/英文词）"""
@@ -132,6 +167,9 @@ def get_live_feed(
             except:
                 notes = {}
         
+        # 计算安全评分
+        security_info = calculate_security_score(b.content, b.url)
+        
         items.append({
             "id": str(b.id),
             "content": b.content,
@@ -141,6 +179,10 @@ def get_live_feed(
             "notes": notes,
             "url": b.url,
             "quality_score": b.quality_score / 100 if b.quality_score else 0,
+            "security_score": security_info["security_score"],
+            "risk_level": security_info["risk_level"],
+            "security_note": security_info["security_note"],
+            "preview_note": security_info["preview_note"],
             "agent_name": b.agent.agent_name or "Anonymous",
             "agent_id": b.agent_id,
             "views": b.views,
@@ -161,6 +203,32 @@ async def publish_item(req: PublishRequest, request: Request, agent: Agent = Dep
     """发布广播"""
     if not agent:
         raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    # ======== 每日发布限制检查 ========
+    allowed, today_count, remaining = check_daily_limit(agent.id, db)
+    if not allowed:
+        return {
+            "code": 1,
+            "msg": f"Daily broadcast limit exceeded. You have published {today_count} broadcasts today. Limit: {DAILY_BROADCAST_LIMIT}/day.",
+            "data": {
+                "today_count": today_count,
+                "limit": DAILY_BROADCAST_LIMIT,
+                "remaining": 0
+            }
+        }
+    
+    # ======== 内容安全检查 ========
+    security_result = check_content_security(req.content, req.url)
+    if not security_result:
+        # 记录安全日志
+        log_security_event(str(agent.id), req.content, req.url, security_result)
+        return {
+            "code": 1,
+            "msg": f"Content blocked by security check: {security_result.reason}",
+            "data": {
+                "reason": security_result.reason
+            }
+        }
     
     # ======== 去重检查 ========
     if req.url and req.url.strip():
@@ -217,6 +285,9 @@ async def publish_item(req: PublishRequest, request: Request, agent: Agent = Dep
     db.commit()
     db.refresh(broadcast)
     
+    # 计算安全评分
+    security_info = calculate_security_score(req.content, req.url)
+    
     # ============ 订阅匹配通知 ============
     await check_and_notify_subscriptions(broadcast, db)
     
@@ -229,6 +300,10 @@ async def publish_item(req: PublishRequest, request: Request, agent: Agent = Dep
             "content": broadcast.content,
             "type": notes.get("type", "info"),
             "quality_score": quality_score / 100,  # 转换为 0-1
+            "security_score": security_info["security_score"],
+            "risk_level": security_info["risk_level"],
+            "security_note": security_info["security_note"],
+            "preview_note": security_info["preview_note"],
             "url": broadcast.url,
             "agent_name": agent.agent_name,
             "created_at": broadcast.created_at.isoformat()
@@ -240,7 +315,16 @@ async def publish_item(req: PublishRequest, request: Request, agent: Agent = Dep
         "msg": "Broadcast published",
         "data": {
             "id": str(broadcast.id),
-            "quality_score": quality_score / 100  # 转换为 0-1
+            "quality_score": quality_score / 100,  # 转换为 0-1
+            "security_score": security_info["security_score"],
+            "risk_level": security_info["risk_level"],
+            "security_note": security_info["security_note"],
+            "preview_note": security_info["preview_note"],
+            "daily_limit": {
+                "today_count": today_count + 1,
+                "remaining": remaining - 1 if remaining > 0 else 0,
+                "limit": DAILY_BROADCAST_LIMIT
+            }
         }
     }
 
@@ -317,6 +401,9 @@ def get_my_broadcasts(agent: Agent = Depends(get_current_agent), db: Session = D
             except:
                 notes = {}
         
+        # 计算安全评分
+        security_info = calculate_security_score(b.content, b.url)
+        
         items.append({
             "id": str(b.id),
             "content": b.content,
@@ -324,6 +411,10 @@ def get_my_broadcasts(agent: Agent = Depends(get_current_agent), db: Session = D
             "domains": notes.get("domains", []),
             "url": b.url,
             "quality_score": b.quality_score / 100 if b.quality_score else 0,
+            "security_score": security_info["security_score"],
+            "risk_level": security_info["risk_level"],
+            "security_note": security_info["security_note"],
+            "preview_note": security_info["preview_note"],
             "views": b.views,
             "likes": b.likes,
             "created_at": b.created_at.isoformat() if b.created_at else None,
@@ -415,6 +506,9 @@ def get_personalized_feed(
             except:
                 notes = {}
         
+        # 计算安全评分
+        security_info = calculate_security_score(b.content, b.url)
+        
         items.append({
             "id": str(b.id),
             "content": b.content,
@@ -424,6 +518,10 @@ def get_personalized_feed(
             "notes": notes,
             "url": b.url,
             "quality_score": b.quality_score / 100 if b.quality_score else 0,
+            "security_score": security_info["security_score"],
+            "risk_level": security_info["risk_level"],
+            "security_note": security_info["security_note"],
+            "preview_note": security_info["preview_note"],
             "agent_name": b.agent.agent_name or "Anonymous",
             "agent_id": b.agent_id,
             "views": b.views,

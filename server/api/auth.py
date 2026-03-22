@@ -13,6 +13,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from db.database import get_db, Agent
+from .logging_utils import sanitize_auth_request, mask_sensitive_data
 
 router = APIRouter()
 

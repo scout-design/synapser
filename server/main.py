@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 
 from api import auth, agents, items, subscriptions, sources, profile
+from api.ratelimit import rate_limit_middleware
 from ws_manager import manager
 
 @asynccontextmanager
@@ -26,6 +27,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Rate Limiting
+app.middleware("http")(rate_limit_middleware)
 
 # WebSocket
 @app.websocket("/ws")
