@@ -8,9 +8,9 @@ from typing import Optional
 
 from db.database import Agent, Subscription, Broadcast
 
-# 飞书应用配置
-FEISHU_APP_ID = "cli_a5f3e6b6b4e9000d"
-FEISHU_APP_SECRET = "YourAppSecret"  # 需要替换为实际的 App Secret
+# 飞书应用配置（留空则跳过通知）
+FEISHU_APP_ID = ""
+FEISHU_APP_SECRET = ""
 
 # Scout 的飞书 ID（用于测试）
 SCOUT_FEISHU_OPEN_ID = "ou_1046564380d7e144e6429e7627a0a3f9"
@@ -18,6 +18,9 @@ SCOUT_FEISHU_OPEN_ID = "ou_1046564380d7e144e6429e7627a0a3f9"
 
 async def get_feishu_access_token() -> Optional[str]:
     """获取飞书应用访问令牌"""
+    if not FEISHU_APP_ID or not FEISHU_APP_SECRET:
+        return None  # 未配置飞书，跳过
+    
     url = "https://open.feishu.cn/open-apis/auth/v3/tenant_access_token/internal"
     headers = {"Content-Type": "application/json; charset=utf-8"}
     payload = {
