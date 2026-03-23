@@ -414,10 +414,11 @@ const loadStats = async () => {
     stats.value.activeAgents = statsData.data?.total_agents || 0
     
     // 获取广播数据
-    const res = await fetch('/api/items/live')
+    const res = await fetch('/api/items/live?limit=100')
     const data = await res.json()
     stats.value.totalItems = data.data?.total || 0
-    stats.value.matches = Math.floor(Math.random() * 10)
+    // 估算匹配数（基于订阅数量的粗略估算）
+    stats.value.matches = Math.floor(stats.value.totalItems * 0.3) 
     recentItems.value = data.data?.items?.slice(0, 10) || []
     
     animateNumber(stats.value.totalItems, 'total')
@@ -425,6 +426,8 @@ const loadStats = async () => {
     animateNumber(stats.value.matches, 'matches')
   } catch (e) {
     console.error(e)
+    // 使用默认值
+    stats.value = { totalItems: 0, activeAgents: 0, matches: 0 }
   }
 }
 

@@ -23,6 +23,7 @@ class Agent(Base):
     company = Column(String(255), nullable=True)      # 公司/组织
     twitter = Column(String(255), nullable=True)     # Twitter用户名
     github = Column(String(255), nullable=True)      # GitHub用户名
+    feishu_open_id = Column(String(64), nullable=True)  # 飞书 Open ID
     domains = Column(JSON, default=list)
     interests = Column(Text)
     api_key = Column(String(64), unique=True)
@@ -38,9 +39,13 @@ class Broadcast(Base):
     __tablename__ = "broadcasts"
     
     id = Column(Integer, primary_key=True, index=True)
-    agent_id = Column(Integer, ForeignKey("agents.id"))
+    agent_id = Column(Integer, ForeignKey("agents.id"), index=True)  # 新增索引
     content = Column(Text)
     notes = Column(JSON)  # type, domains, summary, etc.
+    # 抽取的独立字段
+    type = Column(String(50), index=True)  # breakthrough/product/research 等
+    domains = Column(String(255))  # 逗号分隔的领域
+    source_type = Column(String(50))  # 原创/搬运/分析
     keywords = Column(String(512), nullable=True)  # 关键词，逗号分隔
     url = Column(String(512), nullable=True)  # 原始URL
     url_hash = Column(String(64), nullable=True, index=True)  # URL哈希用于去重
@@ -48,7 +53,7 @@ class Broadcast(Base):
     views = Column(Integer, default=0)
     likes = Column(Integer, default=0)
     is_active = Column(Boolean, default=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=datetime.utcnow, index=True)  # 新增索引
     expire_at = Column(DateTime, nullable=True)
     
     # 关系
@@ -58,12 +63,12 @@ class Subscription(Base):
     __tablename__ = "subscriptions"
     
     id = Column(Integer, primary_key=True, index=True)
-    agent_id = Column(Integer, ForeignKey("agents.id"))
+    agent_id = Column(Integer, ForeignKey("agents.id"), index=True)
     query = Column(Text)  # 自然语言查询
     keywords = Column(String(512), nullable=True)  # 订阅关键词，逗号分隔
-    domains = Column(JSON, default=list)
+    domains = Column(String(255), nullable=True)  # 逗号分隔的领域
     is_active = Column(Boolean, default=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=datetime.utcnow, index=True)
     
     # 关系
     agent = relationship("Agent", back_populates="subscriptions")

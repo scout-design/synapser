@@ -112,17 +112,27 @@ class PublishResponse(BaseModel):
     msg: str
     data: Optional[dict] = None
 
-def calculate_quality_score(content: str, url: str = None) -> int:
-    """计算质量评分 (0-1)"""
+def calculate_quality_score(content: str, url: str = None, source_type: str = None) -> int:
+    """计算质量评分 (0-100)"""
+    score = 0
     content_length = len(content)
-    has_url = url is not None and url.strip() != ""
+    has_url = bool(url and url.strip())
     
+    # 基础分数
     if has_url and content_length > 100:
-        return 80
+        score = 80
     elif has_url and content_length > 50:
-        return 60
+        score = 60
     else:
-        return 40
+        score = 40
+    
+    # 来源加成
+    if source_type == 'original':
+        score += 10
+    elif source_type == 'analysis':
+        score += 5
+    
+    return min(score, 100)
 
 def compute_url_hash(url: str) -> str:
     """计算URL的哈希值用于去重"""
@@ -147,16 +157,24 @@ def get_live_feed(
     type: Optional[str] = Query(None),
     domain: Optional[str] = Query(None),
     limit: int = Query(50, le=100),
+    offset: int = Query(0, ge=0),
     db: Session = Depends(get_db)
 ):
     """获取实时广播流"""
     query = db.query(Broadcast).filter(Broadcast.is_active == True)
     
+    # 使用新字段过滤
     if type:
-        notes_json = json.dumps({"type": type})
-        query = query.filter(Broadcast.notes.like(f'%"type": "{type}"%'))
+        query = query.filter(Broadcast.type == type)
     
-    broadcasts = query.order_by(Broadcast.created_at.desc()).limit(limit).all()
+    if domain:
+        query = query.filter(Broadcast.domains.like(f"%{domain}%"))
+    
+    # 获取总数
+    total = query.count()
+    
+    # 分页查询
+    broadcasts = query.order_by(Broadcast.created_at.desc()).offset(offset).limit(limit).all()
     
     items = []
     for b in broadcasts:
@@ -167,14 +185,18 @@ def get_live_feed(
             except:
                 notes = {}
         
+        # 使用独立字段或从 notes 兼容
+        broadcast_type = b.type or notes.get("type", "info")
+        broadcast_domains = b.domains.split(",") if b.domains else notes.get("domains", [])
+        
         # 计算安全评分
         security_info = calculate_security_score(b.content, b.url)
         
         items.append({
             "id": str(b.id),
             "content": b.content,
-            "type": notes.get("type", "info"),
-            "domains": notes.get("domains", []),
+            "type": broadcast_type,
+            "domains": broadcast_domains,
             "summary": notes.get("summary", ""),
             "notes": notes,
             "url": b.url,
@@ -194,7 +216,9 @@ def get_live_feed(
         "code": 0,
         "data": {
             "items": items,
-            "total": len(items)
+            "total": total,
+            "limit": limit,
+            "offset": offset
         }
     }
 
@@ -253,6 +277,16 @@ async def publish_item(req: PublishRequest, request: Request, agent: Agent = Dep
     except:
         notes = {}
     
+    # 抽取独立字段
+    broadcast_type = notes.get("type", "info")
+    # 将 domains 列表转换为逗号分隔的字符串
+    domains_list = notes.get("domains", [])
+    if isinstance(domains_list, list):
+        domains_str = ",".join([d.strip() for d in domains_list if d])
+    else:
+        domains_str = ""
+    source_type = notes.get("source_type", "original")
+    
     # 如果有location，加入notes
     if location:
         notes["location"] = location["location"]
@@ -263,7 +297,7 @@ async def publish_item(req: PublishRequest, request: Request, agent: Agent = Dep
     expire_at = datetime.utcnow() + timedelta(days=expire_days)
     
     # ======== 计算质量评分 ========
-    quality_score = calculate_quality_score(req.content, req.url)
+    quality_score = calculate_quality_score(req.content, req.url, source_type)
     
     # ======== 提取关键词 ========
     keywords_list = simple_keyword_extractor(req.content)
@@ -274,6 +308,9 @@ async def publish_item(req: PublishRequest, request: Request, agent: Agent = Dep
         agent_id=agent.id,
         content=req.content,
         notes=notes,
+        type=broadcast_type,  # 新字段
+        domains=domains_str,  # 新字段
+        source_type=source_type,  # 新字段
         keywords=keywords_str,
         url=req.url,
         url_hash=compute_url_hash(req.url) if req.url else None,
@@ -343,8 +380,9 @@ async def check_and_notify_subscriptions(broadcast: Broadcast, db: Session):
         Subscription.agent_id != broadcast.agent_id
     ).all()
     
-    broadcast_content = broadcast.content.lower()
-    broadcast_domains = broadcast.notes.get("domains", []) if isinstance(broadcast.notes, dict) else []
+    # 使用独立字段
+    broadcast_content = broadcast.content.lower() if broadcast.content else ""
+    broadcast_domains = broadcast.domains.split(",") if broadcast.domains else []
     
     # 解析广播关键词
     broadcast_keywords = []
@@ -361,11 +399,13 @@ async def check_and_notify_subscriptions(broadcast: Broadcast, db: Session):
             if any(kw in broadcast_content for kw in query_keywords):
                 is_match = True
         
-        # 检查领域匹配
+        # 检查领域匹配（使用独立字段）
         if sub.domains:
-            for domain in sub.domains:
-                if domain in broadcast_domains:
+            sub_domains = sub.domains.split(",") if isinstance(sub.domains, str) else sub.domains
+            for domain in sub_domains:
+                if domain.strip() in [d.strip() for d in broadcast_domains]:
                     is_match = True
+                    break
         
         # 检查订阅关键词匹配
         if sub.keywords and broadcast_keywords:
@@ -379,8 +419,13 @@ async def check_and_notify_subscriptions(broadcast: Broadcast, db: Session):
     
     if matched_subs:
         print(f"🔔 Found {len(matched_subs)} matching subscriptions!")
-        # TODO: 这里可以调用飞书 API 通知匹配的用户
-        # 目前只打印日志，后续可以扩展
+        
+        # 异步发送飞书通知
+        try:
+            from .notifications import notify_subscribers
+            await notify_subscribers(broadcast, matched_subs, db)
+        except Exception as e:
+            print(f"Error sending notifications: {e}")
 
 @router.get("/my")
 def get_my_broadcasts(agent: Agent = Depends(get_current_agent), db: Session = Depends(get_db)):
@@ -401,14 +446,18 @@ def get_my_broadcasts(agent: Agent = Depends(get_current_agent), db: Session = D
             except:
                 notes = {}
         
+        # 使用独立字段或从 notes 兼容
+        broadcast_type = b.type or notes.get("type", "info")
+        broadcast_domains = b.domains.split(",") if b.domains else notes.get("domains", [])
+        
         # 计算安全评分
         security_info = calculate_security_score(b.content, b.url)
         
         items.append({
             "id": str(b.id),
             "content": b.content,
-            "type": notes.get("type", "info"),
-            "domains": notes.get("domains", []),
+            "type": broadcast_type,
+            "domains": broadcast_domains,
             "url": b.url,
             "quality_score": b.quality_score / 100 if b.quality_score else 0,
             "security_score": security_info["security_score"],
@@ -447,15 +496,52 @@ def delete_broadcast(item_id: str, agent: Agent = Depends(get_current_agent), db
     
     return {"code": 0, "msg": "Deleted"}
 
+def calculate_relevance_score(broadcast: Broadcast, subscription: Subscription, agent_id: int) -> float:
+    """
+    计算广播与订阅的相关性分数
+    - 关键词匹配 (最高 40分)
+    - domains 匹配 (最高 30分)
+    - 时间衰减 (最高 20分)
+    - 质量分数 (最高 10分)
+    """
+    score = 0.0
+    
+    # 1. 关键词匹配 (最高 40分)
+    if subscription.query:
+        keywords = subscription.query.lower().split()
+        content_lower = broadcast.content.lower() if broadcast.content else ""
+        for kw in keywords:
+            if kw in content_lower:
+                score += 10  # 每个匹配关键词加10分
+    
+    # 2. domains 匹配 (最高 30分)
+    if broadcast.domains and subscription.domains:
+        b_domains = [d.strip() for d in broadcast.domains.split(",") if d.strip()]
+        s_domains = [d.strip() for d in subscription.domains.split(",") if d.strip()]
+        if any(d in s_domains for d in b_domains):
+            score += 30
+    
+    # 3. 时间衰减 (最高 20分)
+    if broadcast.created_at:
+        hours_old = (datetime.utcnow() - broadcast.created_at).total_seconds() / 3600
+        score += max(0, 20 - hours_old * 0.5)
+    
+    # 4. 质量分数 (最高 10分)
+    if broadcast.quality_score:
+        score += broadcast.quality_score / 10
+    
+    return score
+
 # ============ 新增功能 ============
 
 @router.get("/feed")
 def get_personalized_feed(
     limit: int = Query(50, le=100),
+    offset: int = Query(0, ge=0),
     agent: Agent = Depends(get_current_agent),
     db: Session = Depends(get_db)
 ):
-    """获取个性化 Feed - 基于订阅关键词匹配"""
+    """获取个性化 Feed - 基于订阅关键词匹配 + 推荐算法"""
     if not agent:
         raise HTTPException(status_code=401, detail="Not authenticated")
     
@@ -465,37 +551,41 @@ def get_personalized_feed(
         Subscription.is_active == True
     ).all()
     
+    # 获取所有活跃广播
+    all_broadcasts = db.query(Broadcast).filter(
+        Broadcast.is_active == True
+    ).all()
+    
     if not subscriptions:
-        # 没有订阅，返回最新广播
-        broadcasts = db.query(Broadcast).filter(
-            Broadcast.is_active == True
-        ).order_by(Broadcast.created_at.desc()).limit(limit).all()
+        # 没有订阅，返回最新广播（按时间排序）
+        broadcasts = all_broadcasts
+        # 简单排序：时间倒序
+        broadcasts.sort(key=lambda b: b.created_at or datetime.min, reverse=True)
+        total = len(broadcasts)
+        broadcasts = broadcasts[offset:offset + limit]
+        match_type = "recent"
     else:
-        # 根据订阅查询匹配
-        # 构建 OR 条件：匹配 query 关键词或 domains
-        from sqlalchemy import or_
+        # 使用推荐算法计算相关性分数
+        scored_broadcasts = []
+        for b in all_broadcasts:
+            best_score = 0
+            for sub in subscriptions:
+                score = calculate_relevance_score(b, sub, agent.id)
+                if score > best_score:
+                    best_score = score
+            if best_score > 0:
+                scored_broadcasts.append((b, best_score))
         
-        conditions = []
-        for sub in subscriptions:
-            if sub.query:
-                # 简单匹配：内容包含查询词
-                conditions.append(Broadcast.content.like(f"%{sub.query}%"))
-            if sub.domains:
-                # 匹配领域
-                for domain in sub.domains:
-                    conditions.append(Broadcast.notes.like(f'%"domains": ["{domain}"%'))
+        # 按相关性分数排序
+        scored_broadcasts.sort(key=lambda x: x[1], reverse=True)
         
-        if conditions:
-            query = db.query(Broadcast).filter(
-                Broadcast.is_active == True,
-                or_(*conditions)
-            ).order_by(Broadcast.created_at.desc()).limit(limit)
-        else:
-            query = db.query(Broadcast).filter(
-                Broadcast.is_active == True
-            ).order_by(Broadcast.created_at.desc()).limit(limit)
-        
-        broadcasts = query.all()
+        total = len(scored_broadcasts)
+        broadcast_ids = [b.id for b, _ in scored_broadcasts[offset:offset + limit]]
+        broadcasts = db.query(Broadcast).filter(Broadcast.id.in_(broadcast_ids)).all()
+        # 保持排序顺序
+        broadcasts_dict = {b.id: b for b in broadcasts}
+        broadcasts = [broadcasts_dict[bid] for bid in broadcast_ids if bid in broadcasts_dict]
+        match_type = "subscription"
     
     items = []
     for b in broadcasts:
@@ -506,14 +596,18 @@ def get_personalized_feed(
             except:
                 notes = {}
         
+        # 使用独立字段或从 notes 兼容
+        broadcast_type = b.type or notes.get("type", "info")
+        broadcast_domains = b.domains.split(",") if b.domains else notes.get("domains", [])
+        
         # 计算安全评分
         security_info = calculate_security_score(b.content, b.url)
         
         items.append({
             "id": str(b.id),
             "content": b.content,
-            "type": notes.get("type", "info"),
-            "domains": notes.get("domains", []),
+            "type": broadcast_type,
+            "domains": broadcast_domains,
             "summary": notes.get("summary", ""),
             "notes": notes,
             "url": b.url,
@@ -533,8 +627,10 @@ def get_personalized_feed(
         "code": 0,
         "data": {
             "items": items,
-            "total": len(items),
-            "match_type": "subscription" if subscriptions else "recent"
+            "total": total,
+            "limit": limit,
+            "offset": offset,
+            "match_type": match_type
         }
     }
 

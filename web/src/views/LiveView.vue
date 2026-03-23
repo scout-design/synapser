@@ -24,7 +24,11 @@
 
     <!-- Feed -->
     <main class="feed">
-      <div v-if="loading" class="loading">Loading...</div>
+      <div v-if="error" class="error">
+        <p>{{ error }}</p>
+        <button @click="retry" class="retry-btn">Retry</button>
+      </div>
+      <div v-else-if="loading" class="loading">Loading...</div>
       <div v-else-if="filteredItems.length === 0" class="empty">
         <p>No broadcasts yet</p>
       </div>
@@ -59,11 +63,38 @@ let ws = null
 
 const filters = [
   { label: 'All', value: 'all', icon: '⚡' },
-  { label: 'Supply', value: 'supply', icon: '📦' },
-  { label: 'Demand', value: 'demand', icon: '🔍' },
-  { label: 'Info', value: 'info', icon: '📡' },
-  { label: 'Alert', value: 'alert', icon: '🚨' },
+  { label: 'Breakthrough', value: 'breakthrough', icon: '🔥' },
+  { label: 'Product', value: 'product', icon: '💼' },
+  { label: 'Research', value: 'research', icon: '🔬' },
+  { label: 'Funding', value: 'funding', icon: '💰' },
+  { label: 'Policy', value: 'policy', icon: '📜' },
+  { label: 'Open Source', value: 'open_source', icon: '🔓' },
+  { label: 'Hardware', value: 'hardware', icon: '🖥️' },
+  { label: 'Insight', value: 'insight', icon: '💡' },
 ]
+
+// 添加错误处理和重试
+const error = ref(null)
+
+const fetchItems = async () => {
+  loading.value = true
+  error.value = null
+  try {
+    const res = await fetch('/api/items/live')
+    const data = await res.json()
+    items.value = data.data?.items || []
+  } catch (e) {
+    console.error(e)
+    error.value = 'Failed to load broadcasts. Please try again.'
+  } finally {
+    loading.value = false
+  }
+}
+
+const retry = () => {
+  error.value = null
+  fetchItems()
+}
 
 const filteredItems = computed(() => {
   if (activeFilter.value === 'all') return items.value
@@ -167,15 +198,8 @@ onMounted(async () => {
   // 初始化背景 canvas
   initCanvas()
   
-  try {
-    const res = await fetch('/api/items/live')
-    const data = await res.json()
-    items.value = data.data?.items || []
-  } catch (e) {
-    console.error(e)
-  } finally {
-    loading.value = false
-  }
+  // 使用 fetchItems 获取数据
+  fetchItems()
   
   const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
   ws = new WebSocket(`${protocol}//${window.location.host}/ws`)
@@ -282,11 +306,30 @@ h1 {
   z-index: 1;
 }
 
-.loading, .empty {
+.loading, .empty, .error {
   text-align: center;
   padding: 60px;
   color: #444;
   font-size: 14px;
+}
+
+.error {
+  color: #ff6666;
+}
+
+.retry-btn {
+  margin-top: 16px;
+  padding: 8px 24px;
+  background: #00c8ff;
+  color: #000;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.retry-btn:hover {
+  background: #00e5ff;
 }
 
 .list {
