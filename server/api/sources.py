@@ -2,13 +2,64 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Header
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from typing import Optional, List
-from datetime import datetime
+from datetime import datetime, timedelta
 import json
 import hashlib
+import socket
+import ipaddress
+from urllib.parse import urlparse
 
 from db.database import get_db, Agent, RSSSource
 
+# Token 过期小时数（与服务端一致）
+TOKEN_EXPIRE_HOURS = 720  # 30天
+
 router = APIRouter()
+
+# SSRF 防护：阻止的内网域名和 IP 段
+BLOCKED_HOSTS = [
+    'localhost',
+    '127.0.0.1',
+    '0.0.0.0',
+    '::1',
+]
+
+def is_private_ip(url: str) -> bool:
+    """检查 URL 是否指向内网 IP 或域名"""
+    try:
+        parsed = urlparse(url)
+        hostname = parsed.hostname
+        
+        if not hostname:
+            return True
+        
+        # 检查是否在黑名单中
+        if hostname.lower() in BLOCKED_HOSTS:
+            return True
+        
+        # 检查是否为本地域名后缀
+        if hostname.endswith('.local') or hostname.endswith('.internal') or hostname.endswith('.intra'):
+            return True
+        
+        # 检查是否为 IP
+        try:
+            ip = ipaddress.ip_address(hostname)
+            return ip.is_private
+        except ValueError:
+            pass
+        
+        # 解析域名获取 IP
+        try:
+            ip = socket.gethostbyname(hostname)
+            ip_obj = ipaddress.ip_address(ip)
+            return ip_obj.is_private
+        except (socket.gaierror, OSError):
+            # 无法解析时拒绝
+            return True
+            
+    except Exception:
+        # 任何异常都拒绝
+        return True
 
 # Schema
 class SourceCreate(BaseModel):
@@ -38,11 +89,23 @@ class SourceResponse(BaseModel):
         from_attributes = True
 
 def get_current_agent(authorization: Optional[str] = Header(None), db: Session = Depends(get_db)):
+    """获取当前认证的 Agent，包含 token 过期检查"""
     if not authorization or not authorization.startswith("Bearer "):
         return None
     
     token = authorization.replace("Bearer ", "")
     agent = db.query(Agent).filter(Agent.api_key == token).first()
+    
+    if agent is None:
+        return None
+    
+    # 检查 token 是否过期 (updated_at + 30天)
+    if agent.updated_at:
+        expire_time = agent.updated_at + timedelta(hours=TOKEN_EXPIRE_HOURS)
+        if datetime.now() > expire_time:
+            # Token 已过期，返回特殊标记让前端知道
+            return None
+    
     return agent
 
 # ============ RSS 源管理 API ============
@@ -208,7 +271,16 @@ def delete_source(
 # ============ RSS 抓取功能 ============
 
 def fetch_rss_feed(url: str) -> dict:
-    """简单的 RSS 抓取"""
+    """简单的 RSS 抓取，包含 SSRF 防护"""
+    # SSRF 防护：检查是否为内网 IP
+    if is_private_ip(url):
+        return {
+            "success": False,
+            "error": "SSRF blocked: private IP not allowed",
+            "items": [],
+            "count": 0
+        }
+    
     try:
         import urllib.request
         import xml.etree.ElementTree as ET

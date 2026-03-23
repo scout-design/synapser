@@ -1,7 +1,8 @@
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, Request
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from typing import Optional
+from datetime import datetime, timedelta
 import secrets
 import time
 import os
@@ -17,11 +18,48 @@ from .logging_utils import sanitize_auth_request, mask_sensitive_data
 
 router = APIRouter()
 
+# Token 过期配置
+TOKEN_EXPIRE_HOURS = 720  # 30天
+
 # 邮件验证配置（默认禁用）
 ENABLE_EMAIL_VERIFICATION = os.getenv("ENABLE_EMAIL_VERIFICATION", "false").lower() == "true"
 
 # OTP 存储
 otp_store = {}
+
+# 登录失败记录 {ip: (count, last_fail_time)}
+_login_failures = {}
+
+def get_client_ip(request: Request) -> str:
+    """获取客户端 IP"""
+    forwarded = request.headers.get("X-Forwarded-For")
+    if forwarded:
+        return forwarded.split(",")[0].strip()
+    return request.client.host if request.client else "unknown"
+
+def check_login_failure(ip: str) -> bool:
+    """检查是否被限制登录"""
+    if ip in _login_failures:
+        count, last_time = _login_failures[ip]
+        # 5分钟内超过3次失败，限制15分钟
+        if count >= 3 and (datetime.now() - last_time).total_seconds() < 900:
+            return True
+        # 5分钟后清零
+        if (datetime.now() - last_time).total_seconds() > 300:
+            del _login_failures[ip]
+    return False
+
+def record_login_failure(ip: str):
+    """记录登录失败"""
+    if ip in _login_failures:
+        _login_failures[ip] = (_login_failures[ip][0] + 1, datetime.now())
+    else:
+        _login_failures[ip] = (1, datetime.now())
+
+def clear_login_failure(ip: str):
+    """清除登录失败记录"""
+    if ip in _login_failures:
+        del _login_failures[ip]
 
 # SMTP 配置（环境变量）
 SMTP_SERVER = os.getenv("SMTP_SERVER", "smtp.gmail.com")
@@ -74,8 +112,13 @@ class LoginResponse(BaseModel):
     data: Optional[dict] = None
 
 @router.post("/login", response_model=LoginResponse)
-async def login(request: LoginRequest, db: Session = Depends(get_db)):
+async def login(request: LoginRequest, http_request: Request, db: Session = Depends(get_db)):
     """发送 OTP 验证码"""
+    # 获取客户端 IP 并检查是否被限制
+    client_ip = get_client_ip(http_request)
+    if check_login_failure(client_ip):
+        return LoginResponse(code=1, msg="Too many login attempts. Please try again later.")
+    
     email = request.email
     
     # 检查用户是否存在
@@ -150,8 +193,13 @@ async def login(request: LoginRequest, db: Session = Depends(get_db)):
     )
 
 @router.post("/login/verify", response_model=LoginResponse)
-async def verify(request: VerifyRequest, db: Session = Depends(get_db)):
+async def verify(request: VerifyRequest, http_request: Request, db: Session = Depends(get_db)):
     """验证 OTP"""
+    # 获取客户端 IP 并检查是否被限制
+    client_ip = get_client_ip(http_request)
+    if check_login_failure(client_ip):
+        return LoginResponse(code=1, msg="Too many login attempts. Please try again later.")
+    
     try:
         challenge_id = request.challenge_id
         code = request.code
@@ -166,6 +214,8 @@ async def verify(request: VerifyRequest, db: Session = Depends(get_db)):
             return LoginResponse(code=1, msg="Code expired")
         
         if stored["code"] != code:
+            # 记录登录失败
+            record_login_failure(client_ip)
             return LoginResponse(code=1, msg="Invalid code")
         
         email = stored["email"]
@@ -189,6 +239,9 @@ async def verify(request: VerifyRequest, db: Session = Depends(get_db)):
         
         # 删除 OTP
         del otp_store[challenge_id]
+        
+        # 清除登录失败记录
+        clear_login_failure(client_ip)
         
         needs_profile = not agent.agent_name
         

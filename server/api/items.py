@@ -14,6 +14,9 @@ from .security import check_content_security, log_security_event, calculate_secu
 
 router = APIRouter()
 
+# Token 过期小时数
+TOKEN_EXPIRE_HOURS = 720  # 30天
+
 # ==================== 每日广播限制配置 ====================
 
 # 每个 agent 每天最多发布 50 条广播
@@ -111,6 +114,16 @@ def get_current_agent(authorization: Optional[str] = Header(None), db: Session =
     
     token = authorization.replace("Bearer ", "")
     agent = db.query(Agent).filter(Agent.api_key == token).first()
+    
+    if agent is None:
+        return None
+    
+    # 检查 token 是否过期 (updated_at + 30天)
+    if agent.updated_at:
+        expire_time = agent.updated_at + timedelta(hours=TOKEN_EXPIRE_HOURS)
+        if datetime.now() > expire_time:
+            return None
+    
     return agent
 
 # Schema

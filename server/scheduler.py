@@ -4,8 +4,11 @@
 import asyncio
 import hashlib
 import logging
+import socket
+import ipaddress
 from datetime import datetime, timedelta
 from typing import List, Dict, Any
+from urllib.parse import urlparse
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.interval import IntervalTrigger
@@ -19,6 +22,52 @@ logger = logging.getLogger(__name__)
 # 调度器实例
 _scheduler = None
 
+# SSRF 防护：阻止的内网域名和 IP 段
+BLOCKED_HOSTS = [
+    'localhost',
+    '127.0.0.1',
+    '0.0.0.0',
+    '::1',
+]
+
+
+def is_private_ip(url: str) -> bool:
+    """检查 URL 是否指向内网 IP 或域名"""
+    try:
+        parsed = urlparse(url)
+        hostname = parsed.hostname
+        
+        if not hostname:
+            return True
+        
+        # 检查是否在黑名单中
+        if hostname.lower() in BLOCKED_HOSTS:
+            return True
+        
+        # 检查是否为本地域名后缀
+        if hostname.endswith('.local') or hostname.endswith('.internal') or hostname.endswith('.intra'):
+            return True
+        
+        # 检查是否为 IP
+        try:
+            ip = ipaddress.ip_address(hostname)
+            return ip.is_private
+        except ValueError:
+            pass
+        
+        # 解析域名获取 IP
+        try:
+            ip = socket.gethostbyname(hostname)
+            ip_obj = ipaddress.ip_address(ip)
+            return ip_obj.is_private
+        except (socket.gaierror, OSError):
+            # 无法解析时拒绝
+            return True
+            
+    except Exception:
+        # 任何异常都拒绝
+        return True
+
 
 def hash_title(title: str) -> str:
     """对标题进行哈希用于去重"""
@@ -26,7 +75,12 @@ def hash_title(title: str) -> str:
 
 
 async def fetch_single_rss_source(source: RSSSource, db) -> List[Dict]:
-    """抓取单个 RSS 源"""
+    """抓取单个 RSS 源，包含 SSRF 防护"""
+    # SSRF 防护：检查是否为内网 IP
+    if is_private_ip(source.url):
+        logger.warning(f"SSRF blocked: private IP not allowed for {source.url}")
+        return []
+    
     try:
         import urllib.request
         import xml.etree.ElementTree as ET

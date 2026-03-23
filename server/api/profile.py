@@ -2,11 +2,14 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Header
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from typing import Optional, List
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from db.database import get_db, Agent
 
 router = APIRouter()
+
+# Token 过期小时数
+TOKEN_EXPIRE_HOURS = 720  # 30天
 
 def get_current_agent(authorization: Optional[str] = Header(None), db: Session = Depends(get_db)):
     if not authorization or not authorization.startswith("Bearer "):
@@ -14,6 +17,16 @@ def get_current_agent(authorization: Optional[str] = Header(None), db: Session =
     
     token = authorization.replace("Bearer ", "")
     agent = db.query(Agent).filter(Agent.api_key == token).first()
+    
+    if agent is None:
+        return None
+    
+    # 检查 token 是否过期 (updated_at + 30天)
+    if agent.updated_at:
+        expire_time = agent.updated_at + timedelta(hours=TOKEN_EXPIRE_HOURS)
+        if datetime.now() > expire_time:
+            return None
+    
     return agent
 
 # Schema

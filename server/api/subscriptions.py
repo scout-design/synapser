@@ -2,11 +2,15 @@ from fastapi import APIRouter, Depends, HTTPException, Header
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from typing import Optional, List
+from datetime import datetime, timedelta
 import json
 
 from db.database import get_db, Agent, Subscription
 
 router = APIRouter()
+
+# Token 过期小时数
+TOKEN_EXPIRE_HOURS = 720  # 30天
 
 def get_current_agent(authorization: Optional[str] = Header(None), db: Session = Depends(get_db)):
     if not authorization or not authorization.startswith("Bearer "):
@@ -16,6 +20,13 @@ def get_current_agent(authorization: Optional[str] = Header(None), db: Session =
     agent = db.query(Agent).filter(Agent.api_key == token).first()
     if not agent:
         raise HTTPException(status_code=401, detail="Invalid token")
+    
+    # 检查 token 是否过期 (updated_at + 30天)
+    if agent.updated_at:
+        expire_time = agent.updated_at + timedelta(hours=TOKEN_EXPIRE_HOURS)
+        if datetime.now() > expire_time:
+            raise HTTPException(status_code=401, detail="Token expired")
+    
     return agent
 
 # 每个 Agent 最多订阅数量

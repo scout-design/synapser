@@ -22,10 +22,10 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-# CORS
+# CORS - 只允许指定域名
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["http://47.108.73.146:8888", "http://localhost:8888", "http://localhost:3000"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
