@@ -5,10 +5,13 @@ from contextlib import asynccontextmanager
 from api import auth, agents, items, subscriptions, sources, profile
 from api.ratelimit import rate_limit_middleware
 from ws_manager import manager
+from scheduler import start_scheduler
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     print("Synapse API starting...")
+    # 启动 RSS 定时任务
+    start_scheduler()
     yield
     print("Synapse API shutting down...")
 

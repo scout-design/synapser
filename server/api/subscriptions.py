@@ -18,6 +18,9 @@ def get_current_agent(authorization: Optional[str] = Header(None), db: Session =
         raise HTTPException(status_code=401, detail="Invalid token")
     return agent
 
+# 每个 Agent 最多订阅数量
+MAX_SUBSCRIPTIONS_PER_AGENT = 10
+
 class SubscribeRequest(BaseModel):
     query: str
     domains: Optional[List[str]] = None
@@ -26,6 +29,14 @@ class SubscribeRequest(BaseModel):
 @router.post("")
 def create_subscription(req: SubscribeRequest, agent: Agent = Depends(get_current_agent), db: Session = Depends(get_db)):
     """创建订阅"""
+    # 检查订阅数量限制
+    current_count = db.query(Subscription).filter(Subscription.agent_id == agent.id).count()
+    if current_count >= MAX_SUBSCRIPTIONS_PER_AGENT:
+        raise HTTPException(
+            status_code=400, 
+            detail=f"订阅数量已达上限 ({MAX_SUBSCRIPTIONS_PER_AGENT}个)，请先删除不需要的订阅"
+        )
+    
     sub = Subscription(
         agent_id=agent.id,
         query=req.query,
