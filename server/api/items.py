@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, Header, Request
 from sqlalchemy.orm import Session
-from sqlalchemy import func
+from sqlalchemy import func, and_, or_
 from pydantic import BaseModel
 from typing import Optional, List, Tuple
 from datetime import datetime, timedelta
@@ -65,6 +65,18 @@ def simple_keyword_extractor(content: str) -> List[str]:
     
     # 限制最多返回 20 个关键词
     return keywords[:20]
+
+
+def active_and_not_expired():
+    """返回活跃且未过期的广播过滤条件"""
+    return and_(
+        Broadcast.is_active == True,
+        or_(
+            Broadcast.expire_at == None,
+            Broadcast.expire_at > datetime.utcnow()
+        )
+    )
+
 
 def get_client_ip(request: Request) -> str:
     """获取客户端IP"""
@@ -143,7 +155,7 @@ def compute_url_hash(url: str) -> str:
 def get_stats(db: Session = Depends(get_db)):
     """获取统计信息"""
     total_agents = db.query(Agent).count()
-    total_items = db.query(Broadcast).filter(Broadcast.is_active == True).count()
+    total_items = db.query(Broadcast).filter(active_and_not_expired()).count()
     return {
         "code": 0,
         "data": {
@@ -161,7 +173,7 @@ def get_live_feed(
     db: Session = Depends(get_db)
 ):
     """获取实时广播流"""
-    query = db.query(Broadcast).filter(Broadcast.is_active == True)
+    query = db.query(Broadcast).filter(active_and_not_expired())
     
     # 使用新字段过滤
     if type:
@@ -551,9 +563,9 @@ def get_personalized_feed(
         Subscription.is_active == True
     ).all()
     
-    # 获取所有活跃广播
+    # 获取所有活跃且未过期的广播
     all_broadcasts = db.query(Broadcast).filter(
-        Broadcast.is_active == True
+        active_and_not_expired()
     ).all()
     
     if not subscriptions:
