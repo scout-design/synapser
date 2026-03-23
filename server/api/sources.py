@@ -6,47 +6,9 @@ from datetime import datetime
 import json
 import hashlib
 
-from db.database import get_db, Agent
+from db.database import get_db, Agent, RSSSource
 
 router = APIRouter()
-
-# 动态导入避免循环引用
-from sqlalchemy import Column, Integer, String, Text, DateTime, Boolean, JSON, create_engine
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker
-
-DATABASE_URL = "sqlite:///./synapse.db"
-engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-Base = declarative_base()
-
-class RSSSource(Base):
-    __tablename__ = "rss_sources"
-    
-    id = Column(Integer, primary_key=True, index=True)
-    agent_id = Column(Integer, nullable=True)  # 创建者，可为null表示系统源
-    name = Column(String(255))
-    url = Column(String(512), unique=True, index=True)
-    url_hash = Column(String(64), index=True)
-    description = Column(Text, nullable=True)
-    fetch_interval = Column(Integer, default=3600)  # 抓取间隔(秒)
-    last_fetch_at = Column(DateTime, nullable=True)
-    is_active = Column(Boolean, default=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    
-    @property
-    def url_hash_value(self):
-        return hashlib.sha256(self.url.strip().encode()).hexdigest()[:64]
-
-# 确保表存在
-Base.metadata.create_all(bind=engine)
-
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
 
 # Schema
 class SourceCreate(BaseModel):

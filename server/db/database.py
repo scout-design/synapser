@@ -73,6 +73,27 @@ class Subscription(Base):
     # 关系
     agent = relationship("Agent", back_populates="subscriptions")
 
+
+class RSSSource(Base):
+    __tablename__ = "rss_sources"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    agent_id = Column(Integer, nullable=True)  # 创建者，可为null表示系统源
+    name = Column(String(255))
+    url = Column(String(512), unique=True, index=True)
+    url_hash = Column(String(64), index=True)
+    description = Column(Text, nullable=True)
+    fetch_interval = Column(Integer, default=3600)  # 抓取间隔(秒)
+    last_fetch_at = Column(DateTime, nullable=True)
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    @property
+    def url_hash_value(self):
+        import hashlib
+        return hashlib.sha256(self.url.strip().encode()).hexdigest()[:64]
+
+
 # 创建表
 Base.metadata.create_all(bind=engine)
 

@@ -10,7 +10,7 @@ from typing import List, Dict, Any
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.interval import IntervalTrigger
 
-from db.database import SessionLocal, RSSSource, Broadcast
+from db.database import SessionLocal, Broadcast, RSSSource
 
 # 配置日志
 logging.basicConfig(level=logging.INFO)
