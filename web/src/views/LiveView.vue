@@ -1,5 +1,8 @@
 <template>
   <div class="live-page">
+    <!-- 动态背景 -->
+    <canvas ref="canvas" class="bg-canvas"></canvas>
+    
     <!-- Header -->
     <header class="header">
       <a href="/" class="back">← Back</a>
@@ -51,6 +54,7 @@ import { ref, computed, onMounted, onUnmounted } from 'vue'
 const items = ref([])
 const loading = ref(true)
 const activeFilter = ref('all')
+const canvas = ref(null)
 let ws = null
 
 const filters = [
@@ -94,7 +98,75 @@ const countryCodeToFlag = (code) => {
   return [...code.toUpperCase()].map(c => String.fromCodePoint(c.charCodeAt(0) + offset)).join('')
 }
 
+// 背景画布 - 卫星网络效果
+const initCanvas = () => {
+  const c = canvas.value
+  if (!c) return
+  const ctx = c.getContext('2d')
+  
+  const resize = () => {
+    c.width = window.innerWidth
+    c.height = window.innerHeight
+  }
+  resize()
+  window.addEventListener('resize', resize)
+
+  // 卫星节点
+  const nodes = []
+  for (let i = 0; i < 20; i++) {
+    nodes.push({
+      x: Math.random() * c.width,
+      y: Math.random() * c.height,
+      vx: (Math.random() - 0.5) * 0.3,
+      vy: (Math.random() - 0.5) * 0.3,
+      size: Math.random() * 2 + 1
+    })
+  }
+
+  // 连接线
+  const draw = () => {
+    ctx.fillStyle = 'rgba(10, 14, 23, 0.15)'
+    ctx.fillRect(0, 0, c.width, c.height)
+    
+    // 绘制节点和连线
+    nodes.forEach((node, i) => {
+      node.x += node.vx
+      node.y += node.vy
+      
+      // 边界反弹
+      if (node.x < 0 || node.x > c.width) node.vx *= -1
+      if (node.y < 0 || node.y > c.height) node.vy *= -1
+      
+      // 绘制连线
+      nodes.forEach((node2, j) => {
+        if (i >= j) return
+        const dist = Math.hypot(node.x - node2.x, node.y - node2.y)
+        if (dist < 150) {
+          ctx.beginPath()
+          ctx.moveTo(node.x, node.y)
+          ctx.lineTo(node2.x, node2.y)
+          ctx.strokeStyle = `rgba(0, 200, 255, ${0.15 * (1 - dist / 150)})`
+          ctx.lineWidth = 1
+          ctx.stroke()
+        }
+      })
+      
+      // 绘制节点
+      ctx.beginPath()
+      ctx.arc(node.x, node.y, node.size, 0, Math.PI * 2)
+      ctx.fillStyle = 'rgba(0, 200, 255, 0.6)'
+      ctx.fill()
+    })
+    
+    requestAnimationFrame(draw)
+  }
+  draw()
+}
+
 onMounted(async () => {
+  // 初始化背景 canvas
+  initCanvas()
+  
   try {
     const res = await fetch('/api/items/live')
     const data = await res.json()
@@ -125,8 +197,19 @@ onUnmounted(() => {
 <style scoped>
 .live-page {
   min-height: 100vh;
-  background: #0d0d0d;
+  background: #0a0e17;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  position: relative;
+}
+
+.bg-canvas {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 0;
+  pointer-events: none;
 }
 
 .header {
@@ -135,6 +218,8 @@ onUnmounted(() => {
   justify-content: space-between;
   padding: 20px 24px;
   border-bottom: 1px solid #1a1a1a;
+  position: relative;
+  z-index: 1;
 }
 
 .back {
@@ -162,6 +247,8 @@ h1 {
   padding: 16px 24px;
   overflow-x: auto;
   border-bottom: 1px solid #1a1a1a;
+  position: relative;
+  z-index: 1;
 }
 
 .filter {
@@ -191,6 +278,8 @@ h1 {
   max-width: 600px;
   margin: 0 auto;
   padding: 24px;
+  position: relative;
+  z-index: 1;
 }
 
 .loading, .empty {

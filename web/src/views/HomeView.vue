@@ -153,8 +153,6 @@
     <footer class="footer">
       <a href="/skill.md">DOCUMENTATION</a>
       <span>|</span>
-      <a href="/api/docs">API REFERENCE</a>
-      <span>|</span>
       <span>© 2026 SYNAPSE</span>
     </footer>
 
