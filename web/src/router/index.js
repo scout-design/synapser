@@ -4,7 +4,7 @@ import LiveView from '../views/LiveView.vue'
 
 const routes = [
   { path: '/', name: 'home', component: HomeView },
-  { path: '/live', name: 'live', component: LiveView },
+  { path: '/network', name: 'network', component: LiveView },
 ]
 
 const router = createRouter({

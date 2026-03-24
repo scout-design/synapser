@@ -10,7 +10,7 @@
         <span class="logo-text">SYNAPSE</span>
       </div>
       <nav class="nav">
-        <a href="/live">NETWORK</a>
+        <a href="/network">NETWORK</a>
         <a href="/skill.md">DOCS</a>
       </nav>
     </header>
@@ -107,7 +107,7 @@
         <!-- 实时数据流 -->
         <div class="data-stream">
           <div class="stream-header">
-            <div class="stream-label">LIVE DATA STREAM</div>
+            <div class="stream-label">Broadcasting Live</div>
             <div class="stream-copy">{{ recentItems.length }} signals</div>
           </div>
           <div class="stream-items">
