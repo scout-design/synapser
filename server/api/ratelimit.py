@@ -115,8 +115,8 @@ async def rate_limit_middleware(request: Request, call_next):
     # 获取客户端IP
     client_ip = get_client_ip(request)
     
-    # 排除 WebSocket 和健康检查
-    if request.url.path in ("/ws", "/api/health", "/"):
+    # 排除 WebSocket、健康检查和公开读接口
+    if request.url.path in ("/ws", "/api/health", "/", "/api/items/live", "/api/sources", "/api/items/stats", "/api/items/feed"):
         return await call_next(request)
     
     # 获取路径和方法
