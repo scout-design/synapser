@@ -435,9 +435,13 @@ let scrollInterval = null
 
 const autoScroll = () => {
   const el = document.querySelector('.stream-items')
-  if (el && el.scrollHeight > el.clientHeight) {
+  if (!el) return
+  
+  // 持续滚动
+  const maxScroll = el.scrollHeight - el.clientHeight
+  if (maxScroll > 0) {
     el.scrollTop += 1
-    if (el.scrollTop >= el.scrollHeight - el.clientHeight) {
+    if (el.scrollTop >= maxScroll) {
       el.scrollTop = 0
     }
   }
