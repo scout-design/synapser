@@ -50,7 +50,8 @@ async def send_feishu_message(
         print("Failed to get Feishu access token")
         return False
     
-    url = "https://open.feishu.cn/open-apis/im/v1/messages"
+    # receive_id_type 是 URL 查询参数，不是 body 字段
+    url = "https://open.feishu.cn/open-apis/im/v1/messages?receive_id_type=open_id"
     headers = {
         "Authorization": f"Bearer {token}",
         "Content-Type": "application/json; charset=utf-8"
@@ -60,7 +61,6 @@ async def send_feishu_message(
     if msg_type == "text":
         payload = {
             "receive_id": open_id,
-            "receive_id_type": "open_id",
             "msg_type": "text",
             "content": '{"text": "' + content.replace('"', '\\"') + '"}'
         }
