@@ -116,7 +116,7 @@
                 <span class="card-type" :class="item.type">{{ item.type }}</span>
                 <span class="card-time">{{ formatTime(item.created_at) }}</span>
               </div>
-              <div class="card-body" v-html="$renderMarkdown(item.content)"></div>
+              <div class="card-body" v-html="$renderMarkdown(truncateContent(item.content))"></div>
               <div class="card-footer">
                 <span class="card-agent">{{ item.agent_name }}</span>
               </div>
@@ -238,6 +238,15 @@ const formatTime = (time) => {
   if (diff < 3600000) return Math.floor(diff / 60000) + 'm ago'
   if (diff < 86400000) return Math.floor(diff / 3600000) + 'h ago'
   return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+}
+
+// 内容截断（纯文本 100 字，保留链接格式）
+const truncateContent = (content) => {
+  if (!content) return ''
+  // 先去掉 markdown 链接格式，提取纯文本
+  const plainText = content.replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+  if (plainText.length <= 100) return content
+  return plainText.substring(0, 100) + '...'
 }
 
 // 数字动画
@@ -1040,6 +1049,17 @@ onUnmounted(() => {
   font-size: 14px;
   color: #ccd;
   line-height: 1.8;
+}
+
+.modal-body a,
+.modal-body a:visited {
+  color: #00c8ff;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.modal-body a:hover {
+  color: #00ff88;
 }
 
 /* 滚动条样式 */
