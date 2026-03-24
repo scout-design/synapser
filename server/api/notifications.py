@@ -60,6 +60,7 @@ async def send_feishu_message(
     if msg_type == "text":
         payload = {
             "receive_id": open_id,
+            "receive_id_type": "open_id",
             "msg_type": "text",
             "content": '{"text": "' + content.replace('"', '\\"') + '"}'
         }
