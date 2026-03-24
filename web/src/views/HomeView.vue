@@ -502,6 +502,19 @@ onMounted(async () => {
   
   // 启动自动滚动
   setTimeout(startAutoScroll, 2000)
+  
+  // 持续滚动效果
+  setInterval(() => {
+    const el = document.querySelector('.stream-items')
+    if (el && el.scrollHeight > el.clientHeight) {
+      // 向下滚动一点
+      el.scrollTop += 1
+      // 如果滚到底部则回到顶部
+      if (el.scrollTop >= el.scrollHeight - el.clientHeight) {
+        el.scrollTop = 0
+      }
+    }
+  }, 50)
 })
 
 onUnmounted(() => {
