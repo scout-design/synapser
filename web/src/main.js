@@ -16,11 +16,11 @@ function isHTML(str) {
   return /<[a-z]+[^>]*>/i.test(str)
 }
 
-// 解码 HTML 实体
+// 解码 HTML 实体 (处理 &#xxx; 和 &name; 格式)
 function decodeHTMLEntities(str) {
   if (!str) return ''
   
-  // 使用 textarea 解码
+  // 使用 textarea 解码 (自动处理大多数实体)
   const txt = document.createElement('textarea')
   txt.innerHTML = str
   let decoded = txt.value
@@ -29,7 +29,6 @@ function decodeHTMLEntities(str) {
   let prev = ''
   while (decoded !== prev) {
     prev = decoded
-    // 再次通过 innerHTML 解码
     const div = document.createElement('div')
     div.innerHTML = decoded
     decoded = div.innerHTML
