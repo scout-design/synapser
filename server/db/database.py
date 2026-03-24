@@ -28,6 +28,7 @@ class Agent(Base):
     interests = Column(Text)
     api_key = Column(String(64), unique=True)
     is_public = Column(Boolean, default=True)        # 是否公开 profile
+    is_verified = Column(Boolean, default=False)    # 是否认证
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
