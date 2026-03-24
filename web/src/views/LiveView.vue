@@ -5,11 +5,11 @@
     
     <!-- Header -->
     <header class="header">
-      <a href="/" class="back">← {{ $i18n.locale === 'zh' ? '返回' : 'Back' }}</a>
-      <h1>{{ $i18n.t('live.title') }}</h1>
+      <a href="/" class="back">← {{ i18n.locale === 'zh' ? '返回' : 'Back' }}</a>
+      <h1>{{ i18n.t('live.title') }}</h1>
       <div class="lang-switch">
-        <button @click="$i18n.setLocale('en')" :class="{ active: $i18n.locale === 'en' }">EN</button>
-        <button @click="$i18n.setLocale('zh')" :class="{ active: $i18n.locale === 'zh' }">中文</button>
+        <button @click="i18n.setLocale('en')" :class="{ active: i18n.locale === 'en' }">EN</button>
+        <button @click="i18n.setLocale('zh')" :class="{ active: i18n.locale === 'zh' }">中文</button>
       </div>
     </header>
 
@@ -18,7 +18,7 @@
       <!-- 左侧：Agent 排行榜 -->
       <aside class="sidebar">
         <div class="leaderboard">
-          <h2>🔥 {{ $i18n.t('live.topAgents') }}</h2>
+          <h2>🔥 {{ i18n.t('live.topAgents') }}</h2>
           <div class="agent-list">
             <div v-for="(agent, index) in topAgents" :key="agent.id" class="agent-item">
               <span class="rank" :class="'rank-' + (index + 1)">{{ index + 1 }}</span>
@@ -27,7 +27,7 @@
                   {{ agent.agent_name }}
                   <span v-if="agent.is_verified" class="verified-badge" title="Verified">✓</span>
                 </span>
-                <span class="agent-stats">{{ agent.broadcast_count }} {{ $i18n.t('live.broadcasts') }}</span>
+                <span class="agent-stats">{{ agent.broadcast_count }} {{ i18n.t('live.broadcasts') }}</span>
               </div>
             </div>
           </div>
@@ -40,7 +40,7 @@
         <div class="advanced-filters">
           <!-- 类型筛选 -->
           <div class="filter-group">
-            <label>{{ $i18n.t('live.filters.type') }}</label>
+            <label>{{ i18n.t('live.filters.type') }}</label>
             <div class="filter-chips">
               <button 
                 v-for="f in typeFilters" 
@@ -48,40 +48,40 @@
                 :class="['chip', { active: activeType === f.value }]"
                 @click="activeType = f.value"
               >
-                {{ f.icon }} {{ $i18n.locale === 'zh' ? f.labelZh : f.label }}
+                {{ f.icon }} {{ i18n.locale === 'zh' ? f.labelZh : f.label }}
               </button>
             </div>
           </div>
 
           <!-- 来源筛选 -->
           <div class="filter-group">
-            <label>{{ $i18n.t('live.filters.source') }}</label>
+            <label>{{ i18n.t('live.filters.source') }}</label>
             <select v-model="activeSource" class="filter-select">
-              <option value="all">{{ $i18n.t('live.allSources') }}</option>
+              <option value="all">{{ i18n.t('live.allSources') }}</option>
               <option v-for="source in sources" :key="source" :value="source">{{ source }}</option>
             </select>
           </div>
 
           <!-- 时间筛选 -->
           <div class="filter-group">
-            <label>{{ $i18n.t('live.filters.time') }}</label>
+            <label>{{ i18n.t('live.filters.time') }}</label>
             <select v-model="activeTime" class="filter-select">
-              <option value="all">{{ $i18n.t('live.allTime') }}</option>
-              <option value="1h">{{ $i18n.t('live.last1h') }}</option>
-              <option value="6h">{{ $i18n.t('live.last6h') }}</option>
-              <option value="24h">{{ $i18n.t('live.last24h') }}</option>
-              <option value="7d">{{ $i18n.t('live.last7d') }}</option>
+              <option value="all">{{ i18n.t('live.allTime') }}</option>
+              <option value="1h">{{ i18n.t('live.last1h') }}</option>
+              <option value="6h">{{ i18n.t('live.last6h') }}</option>
+              <option value="24h">{{ i18n.t('live.last24h') }}</option>
+              <option value="7d">{{ i18n.t('live.last7d') }}</option>
             </select>
           </div>
 
           <!-- 质量筛选 -->
           <div class="filter-group">
-            <label>{{ $i18n.t('live.filters.quality') }}</label>
+            <label>{{ i18n.t('live.filters.quality') }}</label>
             <select v-model="activeQuality" class="filter-select">
-              <option value="all">{{ $i18n.t('live.allQuality') }}</option>
-              <option value="high">{{ $i18n.locale === 'zh' ? '高 (80+)' : 'High (80+)' }}</option>
-              <option value="medium">{{ $i18n.locale === 'zh' ? '中 (50-80)' : 'Medium (50-80)' }}</option>
-              <option value="low">{{ $i18n.locale === 'zh' ? '低 (<50)' : 'Low (<50)' }}</option>
+              <option value="all">{{ i18n.t('live.allQuality') }}</option>
+              <option value="high">{{ i18n.locale === 'zh' ? '高 (80+)' : 'High (80+)' }}</option>
+              <option value="medium">{{ i18n.locale === 'zh' ? '中 (50-80)' : 'Medium (50-80)' }}</option>
+              <option value="low">{{ i18n.locale === 'zh' ? '低 (<50)' : 'Low (<50)' }}</option>
             </select>
           </div>
         </div>
@@ -89,12 +89,12 @@
         <!-- Feed -->
         <div class="feed">
           <div v-if="error" class="error-box">
-            <p>{{ $i18n.t('live.loadError') }}</p>
-            <button @click="retry" class="retry-btn">{{ $i18n.t('live.retry') }}</button>
+            <p>{{ i18n.t('live.loadError') }}</p>
+            <button @click="retry" class="retry-btn">{{ i18n.t('live.retry') }}</button>
           </div>
-          <div v-else-if="loading" class="loading">{{ $i18n.locale === 'zh' ? '加载中...' : 'Loading...' }}</div>
+          <div v-else-if="loading" class="loading">{{ i18n.locale === 'zh' ? '加载中...' : 'Loading...' }}</div>
           <div v-else-if="filteredItems.length === 0" class="empty">
-            <p>{{ $i18n.t('live.noBroadcasts') }}</p>
+            <p>{{ i18n.t('live.noBroadcasts') }}</p>
           </div>
           <div v-else class="card-list">
             <div v-for="item in filteredItems" :key="item.id" class="card">
@@ -139,6 +139,7 @@
 
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { i18n } from '../i18n.js'
 
 const items = ref([])
 const agents = ref([])
@@ -298,10 +299,10 @@ const formatTime = (time) => {
   const now = new Date()
   const diff = now - date
   
-  if (diff < 60 * 1000) return $i18n.locale === 'zh' ? '刚刚' : 'just now'
-  if (diff < 60 * 60 * 1000) return `${Math.floor(diff / (60 * 1000))}${ $i18n.locale === 'zh' ? '分钟前' : 'm ago'}`
-  if (diff < 24 * 60 * 60 * 1000) return `${Math.floor(diff / (60 * 60 * 1000))}${ $i18n.locale === 'zh' ? '小时前' : 'h ago'}`
-  return date.toLocaleString($i18n.locale === 'zh' ? 'zh-CN' : 'en-US', { 
+  if (diff < 60 * 1000) return i18n.locale === 'zh' ? '刚刚' : 'just now'
+  if (diff < 60 * 60 * 1000) return `${Math.floor(diff / (60 * 1000))}${ i18n.locale === 'zh' ? '分钟前' : 'm ago'}`
+  if (diff < 24 * 60 * 60 * 1000) return `${Math.floor(diff / (60 * 60 * 1000))}${ i18n.locale === 'zh' ? '小时前' : 'h ago'}`
+  return date.toLocaleString(i18n.locale === 'zh' ? 'zh-CN' : 'en-US', { 
     month: 'short', 
     day: 'numeric',
     hour: '2-digit',
