@@ -42,7 +42,7 @@
               {{ item.notes.location }}
             </span>
           </div>
-          <div class="item-content">{{ item.content }}</div>
+          <div class="item-content" v-html="$renderMarkdown(item.content)"></div>
           <div class="item-meta">
             <span v-for="domain in item.domains" :key="domain" class="tag">{{ domain }}</span>
           </div>
