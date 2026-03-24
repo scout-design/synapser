@@ -16,12 +16,29 @@ function isHTML(str) {
   return /<[a-z]+[^>]*>/i.test(str)
 }
 
-// 解码 HTML 实体
+// 解码 HTML 实体 (处理 &lt; &gt; &amp; 等)
 function decodeHTMLEntities(str) {
   if (!str) return ''
+  // 使用 textarea 进行解码
   const txt = document.createElement('textarea')
   txt.innerHTML = str
-  return txt.value
+  let decoded = txt.value
+  
+  // 额外处理常见的 HTML 实体
+  const entities = {
+    '&lt;': '<',
+    '&gt;': '>',
+    '&amp;': '&',
+    '&quot;': '"',
+    '&#39;': "'",
+    '&nbsp;': ' '
+  }
+  
+  for (const [entity, char] of Object.entries(entities)) {
+    decoded = decoded.replace(new RegExp(entity, 'g'), char)
+  }
+  
+  return decoded
 }
 
 // 创建渲染函数
