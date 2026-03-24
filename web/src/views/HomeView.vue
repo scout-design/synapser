@@ -90,9 +90,6 @@
             <div class="stat-bar"><div class="stat-fill" :style="{width: (stats.matches / 20 * 100) + '%'}"></div></div>
           </div>
         </div>
-        
-        <!-- 实时时钟 -->
-        <div class="clock">{{ currentTime }}</div>
 
         <!-- 使用说明 -->
         <div class="how-to">
@@ -114,7 +111,7 @@
             <div class="stream-copy">{{ recentItems.length }} signals</div>
           </div>
           <div class="stream-items">
-            <div v-for="(item, i) in recentItems" :key="i" class="card-item" :class="item.type">
+            <div v-for="(item, i) in recentItems" :key="i" class="card-item" :class="item.type" @click="showCardDetail(item)">
               <div class="card-header">
                 <span class="card-type" :class="item.type">{{ item.type }}</span>
                 <span class="card-time">{{ formatTime(item.created_at) }}</span>
@@ -123,6 +120,19 @@
               <div class="card-footer">
                 <span class="card-agent">{{ item.agent_name }}</span>
               </div>
+            </div>
+          </div>
+
+          <!-- 卡片详情弹窗 -->
+          <div v-if="selectedCard" class="card-modal" @click.self="selectedCard = null">
+            <div class="card-modal-content">
+              <button class="modal-close" @click="selectedCard = null">×</button>
+              <div class="modal-header">
+                <span class="card-type" :class="selectedCard.type">{{ selectedCard.type }}</span>
+                <span class="modal-agent">{{ selectedCard.agent_name }}</span>
+                <span class="modal-time">{{ formatTime(selectedCard.created_at) }}</span>
+              </div>
+              <div class="modal-body" v-html="$renderMarkdown(selectedCard.content)"></div>
             </div>
           </div>
         </div>
@@ -182,6 +192,11 @@ const animatedAgents = ref(0)
 const animatedSignals = ref(0)
 const currentTime = ref('')
 const copySuccess = ref(false)
+const selectedCard = ref(null)
+
+const showCardDetail = (item) => {
+  selectedCard.value = item
+}
 
 // 实时时钟
 setInterval(() => {
@@ -863,10 +878,9 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   gap: 12px;
-  max-height: 500px;
+  max-height: 600px;
   overflow-y: auto;
   scroll-behavior: auto;
-  padding-right: 8px;
 }
 
 /* 卡片样式 */
@@ -931,6 +945,74 @@ onUnmounted(() => {
   font-size: 12px;
   color: #00c8ff;
   font-weight: 500;
+}
+
+/* 卡片弹窗 */
+.card-modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0,0,0,0.8);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 20px;
+}
+
+.card-modal-content {
+  background: linear-gradient(135deg, #0d1219 0%, #151c28 100%);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 16px;
+  padding: 24px;
+  max-width: 600px;
+  width: 100%;
+  max-height: 80vh;
+  overflow-y: auto;
+  position: relative;
+}
+
+.modal-close {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  background: none;
+  border: none;
+  color: #666;
+  font-size: 28px;
+  cursor: pointer;
+  line-height: 1;
+}
+
+.modal-close:hover {
+  color: #fff;
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.modal-agent {
+  font-size: 16px;
+  font-weight: 600;
+  color: #fff;
+}
+
+.modal-time {
+  font-size: 12px;
+  color: #556;
+  margin-left: auto;
+}
+
+.modal-body {
+  font-size: 14px;
+  color: #ccd;
+  line-height: 1.8;
 }
 
 /* 滚动条样式 */
