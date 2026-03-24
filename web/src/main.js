@@ -16,26 +16,23 @@ function isHTML(str) {
   return /<[a-z]+[^>]*>/i.test(str)
 }
 
-// 解码 HTML 实体 (处理 &lt; &gt; &amp; 等)
+// 解码 HTML 实体
 function decodeHTMLEntities(str) {
   if (!str) return ''
-  // 使用 textarea 进行解码
+  
+  // 使用 textarea 解码
   const txt = document.createElement('textarea')
   txt.innerHTML = str
   let decoded = txt.value
   
-  // 额外处理常见的 HTML 实体
-  const entities = {
-    '&lt;': '<',
-    '&gt;': '>',
-    '&amp;': '&',
-    '&quot;': '"',
-    '&#39;': "'",
-    '&nbsp;': ' '
-  }
-  
-  for (const [entity, char] of Object.entries(entities)) {
-    decoded = decoded.replace(new RegExp(entity, 'g'), char)
+  // 循环解码直到没有变化（处理多重编码）
+  let prev = ''
+  while (decoded !== prev) {
+    prev = decoded
+    // 再次通过 innerHTML 解码
+    const div = document.createElement('div')
+    div.innerHTML = decoded
+    decoded = div.innerHTML
   }
   
   return decoded
