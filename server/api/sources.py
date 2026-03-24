@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Query, Header
+from fastapi import APIRouter, Depends, HTTPException, Query, Header, Request
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from typing import Optional, List
@@ -60,6 +60,37 @@ def is_private_ip(url: str) -> bool:
     except Exception:
         # 任何异常都拒绝
         return True
+
+def is_local_request(request: Request) -> bool:
+    """检查请求是否来自本地/内网"""
+    client_host = request.client.host if request.client else ""
+    
+    # 允许的内网 IP
+    local_ips = ['127.0.0.1', 'localhost', '::1', '0.0.0.0']
+    
+    if client_host in local_ips:
+        return True
+    
+    # 检查是否为内网 IP
+    try:
+        ip = ipaddress.ip_address(client_host)
+        if ip.is_private:
+            return True
+    except ValueError:
+        pass
+    
+    # 检查 X-Forwarded-For
+    forwarded_for = request.headers.get('X-Forwarded-For')
+    if forwarded_for:
+        first_ip = forwarded_for.split(',')[0].strip()
+        try:
+            ip = ipaddress.ip_address(first_ip)
+            if ip.is_private:
+                return True
+        except ValueError:
+            pass
+    
+    return False
 
 # Schema
 class SourceCreate(BaseModel):
@@ -149,10 +180,15 @@ def list_sources(
 @router.post("", response_model=dict)
 def create_source(
     source: SourceCreate,
+    request: Request,
     agent: Agent = Depends(get_current_agent),
     db: Session = Depends(get_db)
 ):
     """添加 RSS 源"""
+    # 系统源 (agent_id=null) 只能从本地/内网创建
+    if agent is None and not is_local_request(request):
+        raise HTTPException(status_code=401, detail="Authentication required for external source creation")
+    
     url_hash = hashlib.sha256(source.url.strip().encode()).hexdigest()[:64]
     
     # 检查是否已存在
