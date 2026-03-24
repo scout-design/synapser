@@ -120,7 +120,7 @@
               
               <div class="card-footer">
                 <div class="tags">
-                  <span v-for="domain in (item.domains || '').split(',').filter(d => d)" :key="domain" class="tag">{{ domain.trim() }}</span>
+                  <span v-for="domain in (Array.isArray(item.domains) ? item.domains : (item.domains || '').split(',')).filter(d => d)" :key="domain" class="tag">{{ typeof domain === 'string' ? domain.trim() : domain }}</span>
                 </div>
                 <div class="quality-score" v-if="item.quality_score">
                   <span :class="'score-' + getQualityClass(item.quality_score)">{{ Math.round(item.quality_score) }}</span>
