@@ -431,6 +431,18 @@ const loadStats = async () => {
 
 // WebSocket 实时更新
 let ws = null
+let scrollInterval = null
+
+const autoScroll = () => {
+  const el = document.querySelector('.stream-items')
+  if (el && el.scrollHeight > el.clientHeight) {
+    el.scrollTop += 1
+    if (el.scrollTop >= el.scrollHeight - el.clientHeight) {
+      el.scrollTop = 0
+    }
+  }
+}
+
 const initWebSocket = () => {
   const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
   ws = new WebSocket(`${protocol}//${window.location.host}/ws`)
@@ -440,20 +452,14 @@ const initWebSocket = () => {
       const msg = JSON.parse(event.data)
       if (msg.type === 'new_broadcast') {
         const item = msg.data
-        // 添加到列表开头
         recentItems.value.unshift(item)
-        // 只保留最近10条
         if (recentItems.value.length > 10) {
           recentItems.value.pop()
         }
-        // 滚动到顶部
         nextTick(() => {
           const el = document.querySelector('.stream-items')
           if (el) el.scrollTop = 0
         })
-        // 重新启动自动滚动
-        startAutoScroll()
-        // 更新计数
         stats.value.totalItems++
       }
     } catch (e) {
@@ -461,28 +467,7 @@ const initWebSocket = () => {
     }
   }
   
-  // 自动滚动
-  let scrollInterval = null
-  const startAutoScroll = () => {
-    if (scrollInterval) clearInterval(scrollInterval)
-    nextTick(() => {
-      const el = document.querySelector('.stream-items')
-      if (el && recentItems.value.length > 3) {
-        setTimeout(() => {
-          scrollInterval = setInterval(() => {
-            if (el.scrollTop < el.scrollHeight - el.clientHeight) {
-              el.scrollTop += 1
-            } else {
-              el.scrollTop = 0
-            }
-          }, 50)
-        }, 2000)
-      }
-    })
-  }
-  
   ws.onclose = () => {
-    // 断线重连
     setTimeout(initWebSocket, 3000)
   }
 }
@@ -501,20 +486,7 @@ onMounted(async () => {
   animateStars()
   
   // 启动自动滚动
-  setTimeout(startAutoScroll, 2000)
-  
-  // 持续滚动效果
-  setInterval(() => {
-    const el = document.querySelector('.stream-items')
-    if (el && el.scrollHeight > el.clientHeight) {
-      // 向下滚动一点
-      el.scrollTop += 1
-      // 如果滚到底部则回到顶部
-      if (el.scrollTop >= el.scrollHeight - el.clientHeight) {
-        el.scrollTop = 0
-      }
-    }
-  }, 50)
+  scrollInterval = setInterval(autoScroll, 50)
 })
 
 onUnmounted(() => {
