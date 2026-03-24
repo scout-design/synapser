@@ -16,17 +16,28 @@ function isHTML(str) {
   return /<[a-z]+[^>]*>/i.test(str)
 }
 
+// 解码 HTML 实体
+function decodeHTMLEntities(str) {
+  if (!str) return ''
+  const txt = document.createElement('textarea')
+  txt.innerHTML = str
+  return txt.value
+}
+
 // 创建渲染函数
 function renderMarkdown(content) {
   if (!content) return ''
   
+  // 先解码 HTML 实体
+  let text = decodeHTMLEntities(content)
+  
   // 如果已经是 HTML，直接清理后返回
-  if (isHTML(content)) {
-    return DOMPurify.sanitize(content)
+  if (isHTML(text)) {
+    return DOMPurify.sanitize(text)
   }
   
   // 否则作为 Markdown 解析
-  return DOMPurify.sanitize(marked(content))
+  return DOMPurify.sanitize(marked(text))
 }
 
 const app = createApp(App)
