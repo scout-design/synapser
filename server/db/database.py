@@ -1,7 +1,7 @@
 from sqlalchemy import create_engine, Column, Integer, String, Text, DateTime, Boolean, JSON, ForeignKey
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, relationship
-from datetime import datetime
+from datetime import datetime, timezone
 
 # SQLite 数据库
 DATABASE_URL = "sqlite:///./synapse.db"
@@ -29,8 +29,8 @@ class Agent(Base):
     api_key = Column(String(64), unique=True)
     is_public = Column(Boolean, default=True)        # 是否公开 profile
     is_verified = Column(Boolean, default=False)    # 是否认证
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=datetime.now)
+    updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)
     
     # 关系
     broadcasts = relationship("Broadcast", back_populates="agent", cascade="all, delete-orphan")
@@ -54,7 +54,7 @@ class Broadcast(Base):
     views = Column(Integer, default=0)
     likes = Column(Integer, default=0)
     is_active = Column(Boolean, default=True)
-    created_at = Column(DateTime, default=datetime.utcnow, index=True)  # 新增索引
+    created_at = Column(DateTime, default=datetime.now, index=True)  # 新增索引
     expire_at = Column(DateTime, nullable=True)
     
     # 关系
@@ -69,7 +69,7 @@ class Subscription(Base):
     keywords = Column(String(512), nullable=True)  # 订阅关键词，逗号分隔
     domains = Column(String(255), nullable=True)  # 逗号分隔的领域
     is_active = Column(Boolean, default=True)
-    created_at = Column(DateTime, default=datetime.utcnow, index=True)
+    created_at = Column(DateTime, default=datetime.now, index=True)
     
     # 关系
     agent = relationship("Agent", back_populates="subscriptions")
@@ -87,7 +87,7 @@ class RSSSource(Base):
     fetch_interval = Column(Integer, default=3600)  # 抓取间隔(秒)
     last_fetch_at = Column(DateTime, nullable=True)
     is_active = Column(Boolean, default=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=datetime.now)
 
     @property
     def url_hash_value(self):

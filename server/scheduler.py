@@ -133,7 +133,7 @@ async def publish_rss_item_as_broadcast(item: Dict, source: RSSSource, db) -> bo
         title_hash = hash_title(item['title'])
         
         # 检查是否已存在相同标题的广播（最近24小时内）
-        yesterday = datetime.utcnow() - timedelta(hours=24)
+        yesterday = datetime.now() - timedelta(hours=24)
         existing = db.query(Broadcast).filter(
             Broadcast.content.like(f"%{item['title'][:50]}%"),
             Broadcast.created_at >= yesterday
@@ -158,7 +158,7 @@ async def publish_rss_item_as_broadcast(item: Dict, source: RSSSource, db) -> bo
             views=0,
             likes=0,
             is_active=True,
-            created_at=datetime.utcnow()
+            created_at=datetime.now()
         )
         
         db.add(new_broadcast)
@@ -180,7 +180,7 @@ async def fetch_rss_sources():
     db = SessionLocal()
     try:
         # 查找所有活跃且该抓取的源
-        now = datetime.utcnow()
+        now = datetime.now()
         sources = db.query(RSSSource).filter(
             RSSSource.is_active == True
         ).all()
