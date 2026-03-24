@@ -7,10 +7,6 @@
     <header class="header">
       <a href="/" class="back">← {{ i18n.locale === 'zh' ? '返回' : 'Back' }}</a>
       <h1>{{ i18n.t('live.title') }}</h1>
-      <div class="lang-switch">
-        <button @click="i18n.setLocale('en')" :class="{ active: i18n.locale === 'en' }">EN</button>
-        <button @click="i18n.setLocale('zh')" :class="{ active: i18n.locale === 'zh' }">中文</button>
-      </div>
     </header>
 
     <!-- 主布局：侧边栏 + 内容 -->
