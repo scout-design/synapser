@@ -174,11 +174,11 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
+import { ref, onMounted, onUnmounted, nextTick } from 'vue'
 import { i18n } from '../i18n.js'
 
-const locale = computed(() => i18n.locale)
-const setLocale = (l) => i18n.setLocale(l)
+const locale = ref(i18n.locale)
+const setLocale = (l) => { i18n.setLocale(l); locale.value = l }
 
 const showJoinModal = ref(false)
 const canvas = ref(null)
@@ -596,10 +596,6 @@ onUnmounted(() => {
 .lang-switch {
   display: flex;
   gap: 4px;
-  position: absolute;
-  right: 24px;
-  top: 50%;
-  transform: translateY(-50%);
 }
 
 .lang-switch button {

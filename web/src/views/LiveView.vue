@@ -5,7 +5,7 @@
     
     <!-- Header -->
     <header class="header">
-      <a href="/" class="back">← {{ i18n.locale === 'zh' ? '返回' : 'Back' }}</a>
+      <a href="/" class="back">← {{ locale === 'zh' ? '返回' : 'Back' }}</a>
       <h1>{{ i18n.t('live.title') }}</h1>
     </header>
 
@@ -44,7 +44,7 @@
                 :class="['chip', { active: activeType === f.value }]"
                 @click="activeType = f.value"
               >
-                {{ f.icon }} {{ i18n.locale === 'zh' ? f.labelZh : f.label }}
+                {{ f.icon }} {{ locale === 'zh' ? f.labelZh : f.label }}
               </button>
             </div>
           </div>
@@ -75,9 +75,9 @@
             <label>{{ i18n.t('live.filters.quality') }}</label>
             <select v-model="activeQuality" class="filter-select">
               <option value="all">{{ i18n.t('live.allQuality') }}</option>
-              <option value="high">{{ i18n.locale === 'zh' ? '高 (80+)' : 'High (80+)' }}</option>
-              <option value="medium">{{ i18n.locale === 'zh' ? '中 (50-80)' : 'Medium (50-80)' }}</option>
-              <option value="low">{{ i18n.locale === 'zh' ? '低 (<50)' : 'Low (<50)' }}</option>
+              <option value="high">{{ locale === 'zh' ? '高 (80+)' : 'High (80+)' }}</option>
+              <option value="medium">{{ locale === 'zh' ? '中 (50-80)' : 'Medium (50-80)' }}</option>
+              <option value="low">{{ locale === 'zh' ? '低 (<50)' : 'Low (<50)' }}</option>
             </select>
           </div>
         </div>
@@ -88,7 +88,7 @@
             <p>{{ i18n.t('live.loadError') }}</p>
             <button @click="retry" class="retry-btn">{{ i18n.t('live.retry') }}</button>
           </div>
-          <div v-else-if="loading" class="loading">{{ i18n.locale === 'zh' ? '加载中...' : 'Loading...' }}</div>
+          <div v-else-if="loading" class="loading">{{ locale === 'zh' ? '加载中...' : 'Loading...' }}</div>
           <div v-else-if="filteredItems.length === 0" class="empty">
             <p>{{ i18n.t('live.noBroadcasts') }}</p>
           </div>
@@ -134,8 +134,11 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 import { i18n } from '../i18n.js'
+
+const locale = ref(i18n.locale)
+const setLocale = (l) => { i18n.setLocale(l); locale.value = l }
 
 const items = ref([])
 const agents = ref([])
@@ -295,10 +298,10 @@ const formatTime = (time) => {
   const now = new Date()
   const diff = now - date
   
-  if (diff < 60 * 1000) return i18n.locale === 'zh' ? '刚刚' : 'just now'
-  if (diff < 60 * 60 * 1000) return `${Math.floor(diff / (60 * 1000))}${ i18n.locale === 'zh' ? '分钟前' : 'm ago'}`
-  if (diff < 24 * 60 * 60 * 1000) return `${Math.floor(diff / (60 * 60 * 1000))}${ i18n.locale === 'zh' ? '小时前' : 'h ago'}`
-  return date.toLocaleString(i18n.locale === 'zh' ? 'zh-CN' : 'en-US', { 
+  if (diff < 60 * 1000) return locale === 'zh' ? '刚刚' : 'just now'
+  if (diff < 60 * 60 * 1000) return `${Math.floor(diff / (60 * 1000))}${ locale === 'zh' ? '分钟前' : 'm ago'}`
+  if (diff < 24 * 60 * 60 * 1000) return `${Math.floor(diff / (60 * 60 * 1000))}${ locale === 'zh' ? '小时前' : 'h ago'}`
+  return date.toLocaleString(locale === 'zh' ? 'zh-CN' : 'en-US', { 
     month: 'short', 
     day: 'numeric',
     hour: '2-digit',
