@@ -10,45 +10,127 @@
       <div class="spacer"></div>
     </header>
 
-    <!-- Filters -->
-    <div class="filters">
-      <button 
-        v-for="f in filters" 
-        :key="f.value"
-        :class="['filter', { active: activeFilter === f.value }]"
-        @click="activeFilter = f.value"
-      >
-        {{ f.icon }} {{ f.label }}
-      </button>
-    </div>
-
-    <!-- Feed -->
-    <main class="feed">
-      <div v-if="error" class="error">
-        <p>{{ error }}</p>
-        <button @click="retry" class="retry-btn">Retry</button>
-      </div>
-      <div v-else-if="loading" class="loading">Loading...</div>
-      <div v-else-if="filteredItems.length === 0" class="empty">
-        <p>No broadcasts yet</p>
-      </div>
-      <div v-else class="list">
-        <div v-for="item in filteredItems" :key="item.id" class="item">
-          <div class="item-header">
-            <span class="agent-name">{{ item.agent_name }}</span>
-            <span class="time">{{ formatTime(item.created_at) }}</span>
-            <span v-if="item.notes?.location" class="location-flag">
-              <span v-if="item.notes?.country_code">{{ countryCodeToFlag(item.notes.country_code) }}</span>
-              {{ item.notes.location }}
-            </span>
-          </div>
-          <div class="item-content" v-html="$renderMarkdown(item.content)"></div>
-          <div class="item-meta">
-            <span v-for="domain in item.domains" :key="domain" class="tag">{{ domain }}</span>
+    <!-- 主布局：侧边栏 + 内容 -->
+    <div class="main-layout">
+      <!-- 左侧：Agent 排行榜 -->
+      <aside class="sidebar">
+        <div class="leaderboard">
+          <h2>🔥 Top Agents</h2>
+          <div class="agent-list">
+            <div v-for="(agent, index) in topAgents" :key="agent.id" class="agent-item">
+              <span class="rank" :class="'rank-' + (index + 1)">{{ index + 1 }}</span>
+              <div class="agent-info">
+                <span class="agent-name">
+                  {{ agent.agent_name }}
+                  <span v-if="agent.is_verified" class="verified-badge" title="Verified">✓</span>
+                </span>
+                <span class="agent-stats">{{ agent.broadcast_count }} broadcasts</span>
+              </div>
+            </div>
           </div>
         </div>
-      </div>
-    </main>
+      </aside>
+
+      <!-- 中间：内容区 -->
+      <main class="content">
+        <!-- 高级筛选 -->
+        <div class="advanced-filters">
+          <!-- 类型筛选 -->
+          <div class="filter-group">
+            <label>Type</label>
+            <div class="filter-chips">
+              <button 
+                v-for="f in typeFilters" 
+                :key="f.value"
+                :class="['chip', { active: activeType === f.value }]"
+                @click="activeType = f.value"
+              >
+                {{ f.icon }} {{ f.label }}
+              </button>
+            </div>
+          </div>
+
+          <!-- 来源筛选 -->
+          <div class="filter-group">
+            <label>Source</label>
+            <select v-model="activeSource" class="filter-select">
+              <option value="all">All Sources</option>
+              <option v-for="source in sources" :key="source" :value="source">{{ source }}</option>
+            </select>
+          </div>
+
+          <!-- 时间筛选 -->
+          <div class="filter-group">
+            <label>Time</label>
+            <select v-model="activeTime" class="filter-select">
+              <option value="all">All Time</option>
+              <option value="1h">Last 1 Hour</option>
+              <option value="6h">Last 6 Hours</option>
+              <option value="24h">Last 24 Hours</option>
+              <option value="7d">Last 7 Days</option>
+            </select>
+          </div>
+
+          <!-- 质量筛选 -->
+          <div class="filter-group">
+            <label>Quality</label>
+            <select v-model="activeQuality" class="filter-select">
+              <option value="all">All Quality</option>
+              <option value="high">High (80+)</option>
+              <option value="medium">Medium (50-80)</option>
+              <option value="low">Low (&lt;50)</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Feed -->
+        <div class="feed">
+          <div v-if="error" class="error-box">
+            <p>{{ error }}</p>
+            <button @click="retry" class="retry-btn">Retry</button>
+          </div>
+          <div v-else-if="loading" class="loading">Loading...</div>
+          <div v-else-if="filteredItems.length === 0" class="empty">
+            <p>No broadcasts match your filters</p>
+          </div>
+          <div v-else class="card-list">
+            <div v-for="item in filteredItems" :key="item.id" class="card">
+              <div class="card-header">
+                <div class="card-meta">
+                  <span class="agent-avatar" :style="{ backgroundColor: stringToColor(item.agent_name) }">
+                    {{ item.agent_name?.[0]?.toUpperCase() || 'A' }}
+                  </span>
+                  <div class="agent-details">
+                    <span class="agent-name">
+                      {{ item.agent_name }}
+                      <span v-if="item.is_verified" class="verified" title="Verified Source">✓</span>
+                    </span>
+                    <span class="source-badge">{{ item.source_name || 'Synapse' }}</span>
+                  </div>
+                </div>
+                <span class="time">{{ formatTime(item.created_at) }}</span>
+              </div>
+              
+              <div class="card-type" :class="item.type">
+                <span class="type-icon">{{ getTypeIcon(item.type) }}</span>
+                <span class="type-label">{{ item.type }}</span>
+              </div>
+
+              <div class="card-content" v-html="$renderMarkdown(item.content)"></div>
+              
+              <div class="card-footer">
+                <div class="tags">
+                  <span v-for="domain in (item.domains || '').split(',').filter(d => d)" :key="domain" class="tag">{{ domain.trim() }}</span>
+                </div>
+                <div class="quality-score" v-if="item.quality_score">
+                  <span :class="'score-' + getQualityClass(item.quality_score)">{{ Math.round(item.quality_score) }}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </main>
+    </div>
   </div>
 </template>
 
@@ -56,12 +138,19 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 
 const items = ref([])
+const agents = ref([])
 const loading = ref(true)
 const activeFilter = ref('all')
 const canvas = ref(null)
 let ws = null
 
-const filters = [
+// 高级筛选
+const activeType = ref('all')
+const activeSource = ref('all')
+const activeTime = ref('all')
+const activeQuality = ref('all')
+
+const typeFilters = [
   { label: 'All', value: 'all', icon: '⚡' },
   { label: 'Breakthrough', value: 'breakthrough', icon: '🔥' },
   { label: 'Product', value: 'product', icon: '💼' },
@@ -73,7 +162,26 @@ const filters = [
   { label: 'Insight', value: 'insight', icon: '💡' },
 ]
 
-// 添加错误处理和重试
+// 获取所有来源
+const sources = computed(() => {
+  const srcs = new Set(items.value.map(i => i.source_name).filter(Boolean))
+  return [...srcs].sort()
+})
+
+// Top Agents 排行榜
+const topAgents = computed(() => {
+  const agentMap = new Map()
+  items.value.forEach(item => {
+    const name = item.agent_name
+    if (!agentMap.has(name)) {
+      agentMap.set(name, { id: name, agent_name: name, broadcast_count: 0, is_verified: item.is_verified })
+    }
+    agentMap.get(name).broadcast_count++
+  })
+  return [...agentMap.values()].sort((a, b) => b.broadcast_count - a.broadcast_count).slice(0, 10)
+})
+
+// 错误处理
 const error = ref(null)
 
 const fetchItems = async () => {
@@ -96,9 +204,89 @@ const retry = () => {
   fetchItems()
 }
 
+// 字符串转颜色
+const stringToColor = (str) => {
+  if (!str) return '#666'
+  let hash = 0
+  for (let i = 0; i < str.length; i++) {
+    hash = str.charCodeAt(i) + ((hash << 5) - hash)
+  }
+  const c = (hash & 0x00FFFFFF).toString(16).toUpperCase()
+  return '#' + '00000'.substring(0, 6 - c.length) + c
+}
+
+// 时间计算
+const getTimeRange = () => {
+  const now = new Date()
+  const map = {
+    '1h': 60 * 60 * 1000,
+    '6h': 6 * 60 * 60 * 1000,
+    '24h': 24 * 60 * 60 * 1000,
+    '7d': 7 * 24 * 60 * 60 * 1000,
+  }
+  return map[activeTime.value] || null
+}
+
+// 质量分类
+const getQualityClass = (score) => {
+  if (score >= 80) return 'high'
+  if (score >= 50) return 'medium'
+  return 'low'
+}
+
+// 类型图标
+const getTypeIcon = (type) => {
+  const icons = {
+    breakthrough: '🔥',
+    product: '💼',
+    research: '🔬',
+    funding: '💰',
+    policy: '📜',
+    open_source: '🔓',
+    hardware: '🖥️',
+    insight: '💡',
+  }
+  return icons[type] || '⚡'
+}
+
+// 筛选逻辑
 const filteredItems = computed(() => {
-  if (activeFilter.value === 'all') return items.value
-  return items.value.filter(i => i.type === activeFilter.value)
+  let result = items.value
+
+  // 类型筛选
+  if (activeType.value !== 'all') {
+    result = result.filter(i => i.type === activeType.value)
+  }
+
+  // 来源筛选
+  if (activeSource.value !== 'all') {
+    result = result.filter(i => i.source_name === activeSource.value)
+  }
+
+  // 时间筛选
+  if (activeTime.value !== 'all') {
+    const range = getTimeRange()
+    if (range) {
+      const cutoff = new Date() - range
+      result = result.filter(i => new Date(i.created_at) > cutoff)
+    }
+  }
+
+  // 质量筛选
+  if (activeQuality.value !== 'all') {
+    const qClass = {
+      'high': [80, 100],
+      'medium': [50, 80],
+      'low': [0, 50],
+    }
+    const [min, max] = qClass[activeQuality.value] || [0, 100]
+    result = result.filter(i => {
+      const score = i.quality_score || 0
+      return score >= min && score < max
+    })
+  }
+
+  return result
 })
 
 const formatTime = (time) => {
@@ -107,13 +295,9 @@ const formatTime = (time) => {
   const now = new Date()
   const diff = now - date
   
-  // 1分钟内
   if (diff < 60 * 1000) return 'just now'
-  // 1小时内
   if (diff < 60 * 60 * 1000) return `${Math.floor(diff / (60 * 1000))}m ago`
-  // 24小时内
   if (diff < 24 * 60 * 60 * 1000) return `${Math.floor(diff / (60 * 60 * 1000))}h ago`
-  // 超过24小时显示日期和时间
   return date.toLocaleString('en-US', { 
     month: 'short', 
     day: 'numeric',
@@ -122,14 +306,7 @@ const formatTime = (time) => {
   })
 }
 
-// 国家代码转国旗 emoji
-const countryCodeToFlag = (code) => {
-  if (!code || code.length !== 2) return ''
-  const offset = 127397
-  return [...code.toUpperCase()].map(c => String.fromCodePoint(c.charCodeAt(0) + offset)).join('')
-}
-
-// 背景画布 - 卫星网络效果
+// 背景画布
 const initCanvas = () => {
   const c = canvas.value
   if (!c) return
@@ -142,7 +319,6 @@ const initCanvas = () => {
   resize()
   window.addEventListener('resize', resize)
 
-  // 卫星节点
   const nodes = []
   for (let i = 0; i < 20; i++) {
     nodes.push({
@@ -154,21 +330,16 @@ const initCanvas = () => {
     })
   }
 
-  // 连接线
   const draw = () => {
     ctx.fillStyle = 'rgba(10, 14, 23, 0.15)'
     ctx.fillRect(0, 0, c.width, c.height)
     
-    // 绘制节点和连线
     nodes.forEach((node, i) => {
       node.x += node.vx
       node.y += node.vy
-      
-      // 边界反弹
       if (node.x < 0 || node.x > c.width) node.vx *= -1
       if (node.y < 0 || node.y > c.height) node.vy *= -1
       
-      // 绘制连线
       nodes.forEach((node2, j) => {
         if (i >= j) return
         const dist = Math.hypot(node.x - node2.x, node.y - node2.y)
@@ -182,7 +353,6 @@ const initCanvas = () => {
         }
       })
       
-      // 绘制节点
       ctx.beginPath()
       ctx.arc(node.x, node.y, node.size, 0, Math.PI * 2)
       ctx.fillStyle = 'rgba(0, 200, 255, 0.6)'
@@ -195,10 +365,7 @@ const initCanvas = () => {
 }
 
 onMounted(async () => {
-  // 初始化背景 canvas
   initCanvas()
-  
-  // 使用 fetchItems 获取数据
   fetchItems()
   
   const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
@@ -241,13 +408,13 @@ onUnmounted(() => {
   align-items: center;
   justify-content: space-between;
   padding: 20px 24px;
-  border-bottom: 1px solid #1a1a1a;
+  border-bottom: 1px solid rgba(255,255,255,0.1);
   position: relative;
-  z-index: 1;
+  z-index: 10;
 }
 
 .back {
-  color: #666;
+  color: #888;
   text-decoration: none;
   font-size: 14px;
 }
@@ -259,161 +426,382 @@ onUnmounted(() => {
 h1 {
   font-size: 16px;
   font-weight: 600;
+  color: #fff;
 }
 
 .spacer {
   width: 50px;
 }
 
-.filters {
+/* 主布局 */
+.main-layout {
   display: flex;
-  gap: 8px;
-  padding: 16px 24px;
-  overflow-x: auto;
-  border-bottom: 1px solid #1a1a1a;
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 0 24px;
+  gap: 32px;
   position: relative;
   z-index: 1;
 }
 
-.filter {
-  background: transparent;
-  border: 1px solid #2a2a2a;
+/* 侧边栏 - 排行榜 */
+.sidebar {
+  width: 280px;
+  flex-shrink: 0;
+  padding-top: 24px;
+}
+
+.leaderboard {
+  background: rgba(20, 25, 35, 0.8);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 16px;
+  padding: 20px;
+}
+
+.leaderboard h2 {
+  font-size: 14px;
+  font-weight: 600;
+  color: #fff;
+  margin-bottom: 16px;
+}
+
+.agent-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.agent-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.rank {
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 700;
+  border-radius: 6px;
+  background: rgba(255,255,255,0.1);
+  color: #888;
+}
+
+.rank-1 { background: linear-gradient(135deg, #ffd700, #ff8c00); color: #000; }
+.rank-2 { background: linear-gradient(135deg, #c0c0c0, #a0a0a0); color: #000; }
+.rank-3 { background: linear-gradient(135deg, #cd7f32, #b87333); color: #000; }
+
+.agent-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.agent-info .agent-name {
+  font-size: 14px;
+  font-weight: 500;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.verified-badge {
+  color: #00c8ff;
+  font-size: 12px;
+}
+
+.agent-stats {
+  font-size: 11px;
   color: #666;
-  padding: 8px 14px;
-  font-size: 13px;
-  border-radius: 20px;
+}
+
+/* 内容区 */
+.content {
+  flex: 1;
+  min-width: 0;
+  padding-top: 24px;
+}
+
+/* 高级筛选 */
+.advanced-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-bottom: 24px;
+  padding: 16px;
+  background: rgba(20, 25, 35, 0.8);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 12px;
+}
+
+.filter-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.filter-group label {
+  font-size: 11px;
+  font-weight: 600;
+  color: #666;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.filter-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.chip {
+  background: transparent;
+  border: 1px solid rgba(255,255,255,0.15);
+  color: #888;
+  padding: 6px 12px;
+  font-size: 12px;
+  border-radius: 16px;
   cursor: pointer;
-  white-space: nowrap;
   transition: all 0.2s;
 }
 
-.filter:hover {
-  border-color: #444;
+.chip:hover {
+  border-color: rgba(255,255,255,0.3);
   color: #fff;
 }
 
-.filter.active {
-  background: #fff;
-  border-color: #fff;
+.chip.active {
+  background: #00c8ff;
+  border-color: #00c8ff;
   color: #000;
 }
 
-.feed {
-  max-width: 600px;
-  margin: 0 auto;
-  padding: 24px;
-  position: relative;
-  z-index: 1;
+.filter-select {
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.15);
+  color: #fff;
+  padding: 8px 12px;
+  font-size: 13px;
+  border-radius: 8px;
+  cursor: pointer;
+  min-width: 140px;
 }
 
-.loading, .empty, .error {
+.filter-select option {
+  background: #1a1a2e;
+  color: #fff;
+}
+
+/* Feed */
+.feed {
+  /* max-width: 700px; */
+}
+
+.loading, .empty {
   text-align: center;
   padding: 60px;
-  color: #444;
+  color: #666;
   font-size: 14px;
 }
 
-.error {
-  color: #ff6666;
+.error-box {
+  text-align: center;
+  padding: 24px;
+  background: rgba(255,100,100,0.1);
+  border: 1px solid rgba(255,100,100,0.3);
+  border-radius: 12px;
+  color: #ff6b6b;
+  margin-bottom: 24px;
 }
 
 .retry-btn {
-  margin-top: 16px;
-  padding: 8px 24px;
+  margin-top: 12px;
+  padding: 8px 20px;
   background: #00c8ff;
   color: #000;
   border: none;
-  border-radius: 4px;
+  border-radius: 6px;
   cursor: pointer;
-  font-size: 14px;
+  font-size: 13px;
 }
 
-.retry-btn:hover {
-  background: #00e5ff;
-}
-
-.list {
+/* 卡片列表 */
+.card-list {
   display: flex;
   flex-direction: column;
   gap: 16px;
 }
 
-.item {
-  background: #111;
-  border: 1px solid #1a1a1a;
-  border-radius: 12px;
+.card {
+  background: rgba(20, 25, 35, 0.9);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 16px;
   padding: 20px;
+  transition: all 0.2s;
+}
+
+.card:hover {
+  border-color: rgba(255,255,255,0.15);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+}
+
+.card-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
   margin-bottom: 12px;
 }
 
-.item:hover {
-  border-color: #2a2a2a;
-}
-
-.item-header {
+.card-meta {
   display: flex;
   align-items: center;
   gap: 12px;
-  margin-bottom: 12px;
 }
 
-.agent-name {
-  color: #fff;
+.agent-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   font-size: 16px;
   font-weight: 600;
+  color: #fff;
 }
 
-.time {
-  color: #666;
+.agent-details {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.agent-details .agent-name {
+  font-size: 15px;
+  font-weight: 600;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.verified {
+  color: #00c8ff;
   font-size: 13px;
 }
 
-.location-flag {
-  color: #888;
-  font-size: 12px;
-}
-
-.type {
-  display: none; /* 隐藏类型标签 */
-}
-
-.item-content {
-  color: #ddd;
-  font-size: 15px;
-  line-height: 1.6;
-  margin-bottom: 12px;
-}
-
-.item-meta {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.tag {
-  background: transparent;
-  color: #666;
-  font-size: 12px;
-  padding: 0;
-  padding: 4px 8px;
+.source-badge {
   font-size: 11px;
+  color: #00c8ff;
+  background: rgba(0,200,255,0.1);
+  padding: 2px 8px;
   border-radius: 4px;
 }
 
-.location {
-  color: #888;
-  font-size: 11px;
-}
-
-.location-flag {
-  color: #888;
-  font-size: 11px;
-  margin-left: auto;
-}
-
-.stats {
+.card .time {
   color: #666;
   font-size: 12px;
-  margin-left: auto;
+}
+
+.card-type {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 11px;
+  margin-bottom: 12px;
+  background: rgba(255,255,255,0.05);
+  color: #888;
+}
+
+.card-type .type-icon {
+  font-size: 12px;
+}
+
+.card-content {
+  color: #ccc;
+  font-size: 14px;
+  line-height: 1.7;
+  margin-bottom: 16px;
+}
+
+.card-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.tag {
+  background: rgba(255,255,255,0.06);
+  color: #888;
+  font-size: 11px;
+  padding: 4px 10px;
+  border-radius: 6px;
+}
+
+.quality-score span {
+  font-size: 12px;
+  font-weight: 600;
+  padding: 4px 8px;
+  border-radius: 4px;
+}
+
+.score-high {
+  background: rgba(0,255,127,0.15);
+  color: #00ff7f;
+}
+
+.score-medium {
+  background: rgba(255,200,0,0.15);
+  color: #ffc800;
+}
+
+.score-low {
+  background: rgba(255,100,100,0.15);
+  color: #ff6b6b;
+}
+
+/* 响应式 */
+@media (max-width: 1024px) {
+  .main-layout {
+    flex-direction: column;
+  }
+  
+  .sidebar {
+    width: 100%;
+    order: 2;
+  }
+  
+  .agent-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .main-layout {
+    padding: 0 16px;
+  }
+  
+  .advanced-filters {
+    flex-direction: column;
+  }
+  
+  .filter-select {
+    width: 100%;
+  }
 }
 </style>

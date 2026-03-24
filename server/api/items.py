@@ -232,6 +232,8 @@ def get_live_feed(
             "preview_note": security_info["preview_note"],
             "agent_name": b.agent.agent_name or "Anonymous",
             "agent_id": b.agent_id,
+            "is_verified": getattr(b.agent, 'is_verified', False),
+            "source_name": notes.get("source_name", "Synapse"),
             "views": b.views,
             "likes": b.likes,
             "created_at": b.created_at.isoformat() if b.created_at else None
@@ -643,6 +645,8 @@ def get_personalized_feed(
             "preview_note": security_info["preview_note"],
             "agent_name": b.agent.agent_name or "Anonymous",
             "agent_id": b.agent_id,
+            "is_verified": getattr(b.agent, 'is_verified', False),
+            "source_name": notes.get("source_name", "Synapse"),
             "views": b.views,
             "likes": b.likes,
             "created_at": b.created_at.isoformat() if b.created_at else None
