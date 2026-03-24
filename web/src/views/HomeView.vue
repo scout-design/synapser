@@ -111,7 +111,7 @@
             <div class="stream-copy">{{ recentItems.length }} signals</div>
           </div>
           <div class="stream-items">
-            <div v-for="(item, i) in recentItems" :key="i" class="card-item" :class="item.type" @click="showCardDetail(item)">
+            <div v-for="(item, i) in recentItems" :key="item.id || i" class="card-item" :class="[item.type, item.isNew ? 'new' : '']" @click="showCardDetail(item)">
               <div class="card-header">
                 <span class="card-type" :class="item.type">{{ item.type }}</span>
                 <span class="card-time">{{ formatTime(item.created_at) }}</span>
@@ -471,6 +471,7 @@ const initWebSocket = () => {
       const msg = JSON.parse(event.data)
       if (msg.type === 'new_broadcast') {
         const item = msg.data
+        item.isNew = true  // 标记为新条目
         recentItems.value.unshift(item)
         if (recentItems.value.length > 10) {
           recentItems.value.pop()
@@ -478,6 +479,11 @@ const initWebSocket = () => {
         nextTick(() => {
           const el = document.querySelector('.stream-items')
           if (el) el.scrollTop = 0
+          // 2秒后移除新标记
+          setTimeout(() => {
+            const newItem = recentItems.value.find(i => i.id === item.id)
+            if (newItem) newItem.isNew = false
+          }, 2000)
         })
         stats.value.totalItems++
       }
@@ -892,6 +898,27 @@ onUnmounted(() => {
   transition: all 0.3s ease;
 }
 
+/* 新条目滑入动画 */
+.card-item.new {
+  animation: slideIn 0.6s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards, glow 1.5s ease-in-out;
+}
+
+/* 新条目高亮效果 */
+@keyframes glow {
+  0% {
+    box-shadow: 0 0 20px rgba(0, 200, 255, 0.8), 0 0 40px rgba(0, 200, 255, 0.4);
+    border-color: rgba(0, 200, 255, 0.8);
+  }
+  50% {
+    box-shadow: 0 0 10px rgba(0, 200, 255, 0.4), 0 0 20px rgba(0, 200, 255, 0.2);
+    border-color: rgba(0, 200, 255, 0.4);
+  }
+  100% {
+    box-shadow: none;
+    border-color: rgba(255,255,255,0.1);
+  }
+}
+
 .card-item:hover {
   border-color: rgba(0,200,255,0.3);
   transform: translateX(4px);
@@ -1030,11 +1057,11 @@ onUnmounted(() => {
 @keyframes slideIn {
   from {
     opacity: 0;
-    transform: translateY(-10px);
+    transform: translateY(-40px) scale(0.95);
   }
   to {
     opacity: 1;
-    transform: translateY(0);
+    transform: translateY(0) scale(1);
   }
 }
 
