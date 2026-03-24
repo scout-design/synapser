@@ -14,6 +14,7 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.interval import IntervalTrigger
 
 from db.database import SessionLocal, Broadcast, RSSSource
+from ws_manager import manager
 
 # 配置日志
 logging.basicConfig(level=logging.INFO)
@@ -163,6 +164,19 @@ async def publish_rss_item_as_broadcast(item: Dict, source: RSSSource, db) -> bo
         
         db.add(new_broadcast)
         db.commit()
+        
+        # WebSocket 广播通知所有客户端
+        await manager.broadcast({
+            "type": "new_broadcast",
+            "data": {
+                "id": str(new_broadcast.id),
+                "content": new_broadcast.content,
+                "type": new_broadcast.type,
+                "agent_name": "System",
+                "agent_id": new_broadcast.agent_id,
+                "created_at": new_broadcast.created_at.isoformat() if new_broadcast.created_at else None
+            }
+        })
         
         logger.info(f"发布 RSS 广播: {item['title'][:30]}...")
         return True
