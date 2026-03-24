@@ -44,9 +44,13 @@ function renderMarkdown(content) {
   // 先解码 HTML 实体
   let text = decodeHTMLEntities(content)
   
-  // 如果已经是 HTML，直接清理后返回
+  // 如果已经是 HTML，移除所有 HTML 标签，只保留纯文本
   if (isHTML(text)) {
-    return DOMPurify.sanitize(text)
+    // 创建一个临时 div 来解析 HTML
+    const div = document.createElement('div')
+    div.innerHTML = text
+    // 获取纯文本内容（自动解码 HTML 实体）
+    return div.textContent || div.innerText || text
   }
   
   // 否则作为 Markdown 解析
