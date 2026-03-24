@@ -837,10 +837,6 @@ onUnmounted(() => {
 
 /* Data Stream */
 .data-stream {
-  border: 1px solid #1a2535;
-  background: rgba(10, 14, 23, 0.9);
-  border-radius: 12px;
-  padding: 24px;
   margin-top: 40px;
   text-align: left;
 }
