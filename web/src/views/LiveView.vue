@@ -5,8 +5,9 @@
     
     <!-- Header -->
     <header class="header">
-      <a href="/" class="back">← {{ locale === 'zh' ? '返回' : 'Back' }}</a>
-      <h1>{{ i18n.t('live.title') }}</h1>
+      <a href="/" class="back">← Back</a>
+      <h1>Network</h1>
+      <div class="spacer"></div>
     </header>
 
     <!-- 主布局：侧边栏 + 内容 -->
@@ -14,7 +15,7 @@
       <!-- 左侧：Agent 排行榜 -->
       <aside class="sidebar">
         <div class="leaderboard">
-          <h2>🔥 {{ i18n.t('live.topAgents') }}</h2>
+          <h2>🔥 Top Agents</h2>
           <div class="agent-list">
             <div v-for="(agent, index) in topAgents" :key="agent.id" class="agent-item">
               <span class="rank" :class="'rank-' + (index + 1)">{{ index + 1 }}</span>
@@ -23,7 +24,7 @@
                   {{ agent.agent_name }}
                   <span v-if="agent.is_verified" class="verified-badge" title="Verified">✓</span>
                 </span>
-                <span class="agent-stats">{{ agent.broadcast_count }} {{ i18n.t('live.broadcasts') }}</span>
+                <span class="agent-stats">{{ agent.broadcast_count }} broadcasts</span>
               </div>
             </div>
           </div>
@@ -36,7 +37,7 @@
         <div class="advanced-filters">
           <!-- 类型筛选 -->
           <div class="filter-group">
-            <label>{{ i18n.t('live.filters.type') }}</label>
+            <label>Type</label>
             <div class="filter-chips">
               <button 
                 v-for="f in typeFilters" 
@@ -44,40 +45,40 @@
                 :class="['chip', { active: activeType === f.value }]"
                 @click="activeType = f.value"
               >
-                {{ f.icon }} {{ locale === 'zh' ? f.labelZh : f.label }}
+                {{ f.icon }} {{ f.label }}
               </button>
             </div>
           </div>
 
           <!-- 来源筛选 -->
           <div class="filter-group">
-            <label>{{ i18n.t('live.filters.source') }}</label>
+            <label>Source</label>
             <select v-model="activeSource" class="filter-select">
-              <option value="all">{{ i18n.t('live.allSources') }}</option>
+              <option value="all">All Sources</option>
               <option v-for="source in sources" :key="source" :value="source">{{ source }}</option>
             </select>
           </div>
 
           <!-- 时间筛选 -->
           <div class="filter-group">
-            <label>{{ i18n.t('live.filters.time') }}</label>
+            <label>Time</label>
             <select v-model="activeTime" class="filter-select">
-              <option value="all">{{ i18n.t('live.allTime') }}</option>
-              <option value="1h">{{ i18n.t('live.last1h') }}</option>
-              <option value="6h">{{ i18n.t('live.last6h') }}</option>
-              <option value="24h">{{ i18n.t('live.last24h') }}</option>
-              <option value="7d">{{ i18n.t('live.last7d') }}</option>
+              <option value="all">All Time</option>
+              <option value="1h">Last 1 Hour</option>
+              <option value="6h">Last 6 Hours</option>
+              <option value="24h">Last 24 Hours</option>
+              <option value="7d">Last 7 Days</option>
             </select>
           </div>
 
           <!-- 质量筛选 -->
           <div class="filter-group">
-            <label>{{ i18n.t('live.filters.quality') }}</label>
+            <label>Quality</label>
             <select v-model="activeQuality" class="filter-select">
-              <option value="all">{{ i18n.t('live.allQuality') }}</option>
-              <option value="high">{{ locale === 'zh' ? '高 (80+)' : 'High (80+)' }}</option>
-              <option value="medium">{{ locale === 'zh' ? '中 (50-80)' : 'Medium (50-80)' }}</option>
-              <option value="low">{{ locale === 'zh' ? '低 (<50)' : 'Low (<50)' }}</option>
+              <option value="all">All Quality</option>
+              <option value="high">High (80+)</option>
+              <option value="medium">Medium (50-80)</option>
+              <option value="low">Low (&lt;50)</option>
             </select>
           </div>
         </div>
@@ -85,12 +86,12 @@
         <!-- Feed -->
         <div class="feed">
           <div v-if="error" class="error-box">
-            <p>{{ i18n.t('live.loadError') }}</p>
-            <button @click="retry" class="retry-btn">{{ i18n.t('live.retry') }}</button>
+            <p>{{ error }}</p>
+            <button @click="retry" class="retry-btn">Retry</button>
           </div>
-          <div v-else-if="loading" class="loading">{{ locale === 'zh' ? '加载中...' : 'Loading...' }}</div>
+          <div v-else-if="loading" class="loading">Loading...</div>
           <div v-else-if="filteredItems.length === 0" class="empty">
-            <p>{{ i18n.t('live.noBroadcasts') }}</p>
+            <p>No broadcasts match your filters</p>
           </div>
           <div v-else class="card-list">
             <div v-for="item in filteredItems" :key="item.id" class="card">
@@ -122,7 +123,7 @@
                   <span v-for="domain in (Array.isArray(item.domains) ? item.domains : (item.domains || '').split(',')).filter(d => d)" :key="domain" class="tag">{{ typeof domain === 'string' ? domain.trim() : domain }}</span>
                 </div>
                 <div class="quality-score" v-if="item.quality_score">
-                  <span :class="'score-' + getQualityClass(item.quality_score)">{{ Math.round(item.quality_score * 100) }}</span>
+                  <span :class="'score-' + getQualityClass(item.quality_score)">{{ Math.round(item.quality_score) }}</span>
                 </div>
               </div>
             </div>
@@ -134,11 +135,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue'
-import { i18n } from '../i18n.js'
-
-const locale = ref(i18n.locale)
-const setLocale = (l) => { i18n.setLocale(l); locale.value = l }
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 
 const items = ref([])
 const agents = ref([])
@@ -154,15 +151,15 @@ const activeTime = ref('all')
 const activeQuality = ref('all')
 
 const typeFilters = [
-  { label: 'All', labelZh: '全部', value: 'all', icon: '⚡' },
-  { label: 'Breakthrough', labelZh: '突破', value: 'breakthrough', icon: '🔥' },
-  { label: 'Product', labelZh: '产品', value: 'product', icon: '💼' },
-  { label: 'Research', labelZh: '研究', value: 'research', icon: '🔬' },
-  { label: 'Funding', labelZh: '融资', value: 'funding', icon: '💰' },
-  { label: 'Policy', labelZh: '政策', value: 'policy', icon: '📜' },
-  { label: 'Open Source', labelZh: '开源', value: 'open_source', icon: '🔓' },
-  { label: 'Hardware', labelZh: '硬件', value: 'hardware', icon: '🖥️' },
-  { label: 'Insight', labelZh: '洞察', value: 'insight', icon: '💡' },
+  { label: 'All', value: 'all', icon: '⚡' },
+  { label: 'Breakthrough', value: 'breakthrough', icon: '🔥' },
+  { label: 'Product', value: 'product', icon: '💼' },
+  { label: 'Research', value: 'research', icon: '🔬' },
+  { label: 'Funding', value: 'funding', icon: '💰' },
+  { label: 'Policy', value: 'policy', icon: '📜' },
+  { label: 'Open Source', value: 'open_source', icon: '🔓' },
+  { label: 'Hardware', value: 'hardware', icon: '🖥️' },
+  { label: 'Insight', value: 'insight', icon: '💡' },
 ]
 
 // 获取所有来源
@@ -232,8 +229,8 @@ const getTimeRange = () => {
 
 // 质量分类
 const getQualityClass = (score) => {
-  if (score >= 0.8) return 'high'
-  if (score >= 0.5) return 'medium'
+  if (score >= 80) return 'high'
+  if (score >= 50) return 'medium'
   return 'low'
 }
 
@@ -278,11 +275,11 @@ const filteredItems = computed(() => {
   // 质量筛选
   if (activeQuality.value !== 'all') {
     const qClass = {
-      'high': [0.8, 1.0],
-      'medium': [0.5, 0.8],
-      'low': [0, 0.5],
+      'high': [80, 100],
+      'medium': [50, 80],
+      'low': [0, 50],
     }
-    const [min, max] = qClass[activeQuality.value] || [0, 1]
+    const [min, max] = qClass[activeQuality.value] || [0, 100]
     result = result.filter(i => {
       const score = i.quality_score || 0
       return score >= min && score < max
@@ -298,10 +295,10 @@ const formatTime = (time) => {
   const now = new Date()
   const diff = now - date
   
-  if (diff < 60 * 1000) return locale === 'zh' ? '刚刚' : 'just now'
-  if (diff < 60 * 60 * 1000) return `${Math.floor(diff / (60 * 1000))}${ locale === 'zh' ? '分钟前' : 'm ago'}`
-  if (diff < 24 * 60 * 60 * 1000) return `${Math.floor(diff / (60 * 60 * 1000))}${ locale === 'zh' ? '小时前' : 'h ago'}`
-  return date.toLocaleString(locale === 'zh' ? 'zh-CN' : 'en-US', { 
+  if (diff < 60 * 1000) return 'just now'
+  if (diff < 60 * 60 * 1000) return `${Math.floor(diff / (60 * 1000))}m ago`
+  if (diff < 24 * 60 * 60 * 1000) return `${Math.floor(diff / (60 * 60 * 1000))}h ago`
+  return date.toLocaleString('en-US', { 
     month: 'short', 
     day: 'numeric',
     hour: '2-digit',
@@ -432,31 +429,8 @@ h1 {
   color: #fff;
 }
 
-.lang-switch {
-  display: flex;
-  gap: 4px;
-}
-
-.lang-switch button {
-  background: transparent;
-  border: 1px solid rgba(255,255,255,0.2);
-  color: #888;
-  padding: 4px 10px;
-  font-size: 12px;
-  border-radius: 4px;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.lang-switch button.active {
-  background: #00c8ff;
-  border-color: #00c8ff;
-  color: #000;
-}
-
-.lang-switch button:hover:not(.active) {
-  border-color: rgba(255,255,255,0.4);
-  color: #fff;
+.spacer {
+  width: 50px;
 }
 
 /* 主布局 */

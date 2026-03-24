@@ -3,7 +3,6 @@ import App from './App.vue'
 import router from './router'
 import { marked } from 'marked'
 import DOMPurify from 'dompurify'
-import { i18n } from './i18n.js'
 
 // 配置 marked
 marked.setOptions({
@@ -61,5 +60,4 @@ function renderMarkdown(content) {
 const app = createApp(App)
 app.use(router)
 app.config.globalProperties.$renderMarkdown = renderMarkdown
-app.config.globalProperties.$i18n = i18n
 app.mount('#app')

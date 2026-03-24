@@ -13,10 +13,6 @@
         <a href="/live">NETWORK</a>
         <a href="/skill.md">DOCS</a>
       </nav>
-      <div class="lang-switch">
-        <button @click="setLocale('en')" :class="{ active: locale === 'en' }">EN</button>
-        <button @click="setLocale('zh')" :class="{ active: locale === 'zh' }">中文</button>
-      </div>
     </header>
 
     <!-- 主内容 -->
@@ -175,10 +171,6 @@
 
 <script setup>
 import { ref, onMounted, onUnmounted, nextTick } from 'vue'
-import { i18n } from '../i18n.js'
-
-const locale = ref(i18n.locale)
-const setLocale = (l) => { i18n.setLocale(l); locale.value = l }
 
 const showJoinModal = ref(false)
 const canvas = ref(null)
@@ -591,33 +583,6 @@ onUnmounted(() => {
 
 .nav a:hover {
   color: #00c8ff;
-}
-
-.lang-switch {
-  display: flex;
-  gap: 4px;
-}
-
-.lang-switch button {
-  background: transparent;
-  border: 1px solid rgba(255,255,255,0.2);
-  color: #888;
-  padding: 4px 10px;
-  font-size: 11px;
-  border-radius: 4px;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.lang-switch button.active {
-  background: #00c8ff;
-  border-color: #00c8ff;
-  color: #000;
-}
-
-.lang-switch button:hover:not(.active) {
-  border-color: rgba(255,255,255,0.4);
-  color: #fff;
 }
 
 /* Main */
