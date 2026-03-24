@@ -114,13 +114,14 @@
             <div class="stream-copy">{{ recentItems.length }} signals</div>
           </div>
           <div class="stream-items">
-            <div v-for="(item, i) in recentItems" :key="i" class="stream-item" :class="item.type" :style="{ animation: i === 0 ? 'slideIn 0.3s ease-out' : '' }">
-              <span class="stream-type" :class="item.type">{{ item.type }}</span>
-              <div class="stream-content" v-html="$renderMarkdown(item.content)"></div>
-              <div class="stream-meta">
-                {{ item.agent_name }}
-                <span v-if="item.notes?.location" class="location-flag">🌍 {{ item.notes.location }}</span>
-                · {{ formatTime(item.created_at) }}
+            <div v-for="(item, i) in recentItems" :key="i" class="card-item" :class="item.type">
+              <div class="card-header">
+                <span class="card-type" :class="item.type">{{ item.type }}</span>
+                <span class="card-time">{{ formatTime(item.created_at) }}</span>
+              </div>
+              <div class="card-body" v-html="$renderMarkdown(item.content)"></div>
+              <div class="card-footer">
+                <span class="card-agent">{{ item.agent_name }}</span>
               </div>
             </div>
           </div>
@@ -437,12 +438,12 @@ const autoScroll = () => {
   const el = document.querySelector('.stream-items')
   if (!el) return
   
-  // 如果滚动条在顶部或者滚动到底部了，重置到顶部继续滚动
   const maxScroll = el.scrollHeight - el.clientHeight
-  if (el.scrollTop >= maxScroll || el.scrollTop === 0) {
+  if (maxScroll <= 0) return
+  
+  el.scrollTop += 1
+  if (el.scrollTop >= maxScroll) {
     el.scrollTop = 0
-  } else {
-    el.scrollTop += 2
   }
 }
 
@@ -865,10 +866,75 @@ onUnmounted(() => {
 .stream-items {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  max-height: 400px;
+  gap: 12px;
+  max-height: 500px;
   overflow-y: auto;
-  scroll-behavior: smooth;
+  scroll-behavior: auto;
+  padding-right: 8px;
+}
+
+/* 卡片样式 */
+.card-item {
+  background: linear-gradient(135deg, #0d1219 0%, #151c28 100%);
+  border-radius: 12px;
+  padding: 16px;
+  border: 1px solid rgba(255,255,255,0.1);
+  transition: all 0.3s ease;
+}
+
+.card-item:hover {
+  border-color: rgba(0,200,255,0.3);
+  transform: translateX(4px);
+}
+
+.card-item.info { border-left: 3px solid #00aaff; }
+.card-item.breakthrough { border-left: 3px solid #ff4444; }
+.card-item.product { border-left: 3px solid #00ff88; }
+.card-item.research { border-left: 3px solid #ffaa00; }
+.card-item.funding { border-left: 3px solid #00c8ff; }
+
+.card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.card-type {
+  padding: 4px 10px;
+  font-size: 10px;
+  border-radius: 4px;
+  text-transform: uppercase;
+  font-weight: 600;
+}
+
+.card-type.info { background: rgba(0,170,255,0.2); color: #00aaff; }
+.card-type.breakthrough { background: rgba(255,68,68,0.2); color: #ff4444; }
+.card-type.product { background: rgba(0,255,136,0.2); color: #00ff88; }
+.card-type.research { background: rgba(255,170,0,0.2); color: #ffaa00; }
+.card-type.funding { background: rgba(0,200,255,0.2); color: #00c8ff; }
+
+.card-time {
+  font-size: 11px;
+  color: #556;
+}
+
+.card-body {
+  font-size: 14px;
+  color: #ccd;
+  line-height: 1.6;
+  margin-bottom: 12px;
+}
+
+.card-footer {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.card-agent {
+  font-size: 12px;
+  color: #00c8ff;
+  font-weight: 500;
 }
 
 /* 滚动条样式 */
