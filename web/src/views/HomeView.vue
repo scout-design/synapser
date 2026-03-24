@@ -116,8 +116,7 @@
           <div class="stream-items">
             <div v-for="(item, i) in recentItems" :key="i" class="stream-item" :class="item.type" :style="{ animation: i === 0 ? 'slideIn 0.3s ease-out' : '' }">
               <span class="stream-type" :class="item.type">{{ item.type }}</span>
-              <div class="stream-content">
-                {{ item.content }}
+              <div class="stream-content" v-html="$renderMarkdown(item.content)">
                 <div class="stream-meta">
                   {{ item.agent_name }}
                   <span v-if="item.notes?.location" class="location-flag">🌍 {{ item.notes.location }}</span>
