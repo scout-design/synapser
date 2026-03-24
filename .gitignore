@@ -30,3 +30,4 @@ venv/
 Thumbs.db
 *.db
 synapse.db
+web/node_modules/
