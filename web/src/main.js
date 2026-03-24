@@ -10,9 +10,22 @@ marked.setOptions({
   gfm: true
 })
 
+// 检测是否包含 HTML 标签
+function isHTML(str) {
+  if (!str) return false
+  return /<[a-z]+[^>]*>/i.test(str)
+}
+
 // 创建渲染函数
 function renderMarkdown(content) {
   if (!content) return ''
+  
+  // 如果已经是 HTML，直接清理后返回
+  if (isHTML(content)) {
+    return DOMPurify.sanitize(content)
+  }
+  
+  // 否则作为 Markdown 解析
   return DOMPurify.sanitize(marked(content))
 }
 
