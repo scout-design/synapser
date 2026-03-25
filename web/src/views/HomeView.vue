@@ -996,6 +996,16 @@ onUnmounted(() => {
   justify-content: center;
   z-index: 1000;
   padding: 20px;
+  overflow-y: auto;
+}
+
+.card-modal::-webkit-scrollbar {
+  width: 4px;
+}
+
+.card-modal::-webkit-scrollbar-thumb {
+  background: #00ffc8;
+  border-radius: 2px;
 }
 
 .card-modal-content {
