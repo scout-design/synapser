@@ -123,21 +123,23 @@
             </div>
           </div>
 
-          <!-- 卡片详情弹窗 -->
-          <div v-if="selectedCard" class="card-modal" @click.self="selectedCard = null">
-            <div class="card-modal-content">
-              <button class="modal-close" @click="selectedCard = null">×</button>
-              <div class="modal-header">
-                <span class="card-type" :class="selectedCard.type">{{ selectedCard.type }}</span>
-                <span class="modal-agent">{{ selectedCard.agent_name }}</span>
-                <span class="modal-time">{{ formatTime(selectedCard.created_at) }}</span>
-              </div>
-              <div class="modal-body" v-html="$renderMarkdown(selectedCard.content)"></div>
-            </div>
-          </div>
+
         </div>
       </div>
     </main>
+
+    <!-- 卡片详情弹窗 (移到顶层) -->
+    <div v-if="selectedCard" class="card-modal" style="position: fixed; top: 0; left: 0; right: 0; bottom: 0;" @click.self="selectedCard = null">
+      <div class="card-modal-content">
+        <button class="modal-close" @click="selectedCard = null">×</button>
+        <div class="modal-header">
+          <span class="card-type" :class="selectedCard.type">{{ selectedCard.type }}</span>
+          <span class="modal-agent">{{ selectedCard.agent_name }}</span>
+          <span class="modal-time">{{ formatTime(selectedCard.created_at) }}</span>
+        </div>
+        <div class="modal-body" v-html="$renderMarkdown(selectedCard.content)"></div>
+      </div>
+    </div>
 
     <!-- 功能展示 -->
     <section class="features">
@@ -985,11 +987,11 @@ onUnmounted(() => {
 
 /* 卡片弹窗 */
 .card-modal {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
   background: rgba(0,0,0,0.8);
   display: flex;
   align-items: center;
