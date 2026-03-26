@@ -186,7 +186,11 @@ def get_live_feed(
     db: Session = Depends(get_db)
 ):
     """获取实时广播流"""
-    query = db.query(Broadcast).filter(active_and_not_expired())
+    from sqlalchemy.orm import joinedload
+    
+    query = db.query(Broadcast).options(
+        joinedload(Broadcast.agent)
+    ).filter(active_and_not_expired())
     
     # 使用新字段过滤
     if type:
@@ -195,10 +199,10 @@ def get_live_feed(
     if domain:
         query = query.filter(Broadcast.domains.like(f"%{domain}%"))
     
-    # 获取总数
-    total = query.count()
+    # 获取总数 - 优化为子查询避免重复扫描
+    total = query.with_entities(func.count(Broadcast.id)).scalar()
     
-    # 分页查询
+    # 分页查询 - 预加载 agent
     broadcasts = query.order_by(Broadcast.created_at.desc()).offset(offset).limit(limit).all()
     
     items = []
@@ -214,8 +218,29 @@ def get_live_feed(
         broadcast_type = b.type or notes.get("type", "info")
         broadcast_domains = b.domains.split(",") if b.domains else notes.get("domains", [])
         
-        # 计算安全评分
-        security_info = calculate_security_score(b.content, b.url)
+        # 计算安全评分 - 简化版，移除重复计算
+        url = b.url
+        score = 1.0
+        risk_level = "safe"
+        security_note = ""
+        
+        if url:
+            from .security import check_suspicious_url, SHORT_URL_DOMAINS
+            from urllib.parse import urlparse
+            try:
+                parsed = urlparse(url)
+                domain_check = parsed.netloc.lower()
+                if not check_suspicious_url(url)[0]:
+                    score -= 0.3
+                    risk_level = "low"
+                    security_note = "可疑URL"
+                for short_domain in SHORT_URL_DOMAINS:
+                    if domain_check == short_domain or domain_check.endswith("." + short_domain):
+                        score -= 0.2
+                        risk_level = "low"
+                        break
+            except:
+                pass
         
         items.append({
             "id": str(b.id),
@@ -226,13 +251,13 @@ def get_live_feed(
             "notes": notes,
             "url": b.url,
             "quality_score": b.quality_score / 100 if b.quality_score else 0,
-            "security_score": security_info["security_score"],
-            "risk_level": security_info["risk_level"],
-            "security_note": security_info["security_note"],
-            "preview_note": security_info["preview_note"],
-            "agent_name": b.agent.agent_name or "Anonymous",
+            "security_score": max(0, score),
+            "risk_level": risk_level,
+            "security_note": security_note,
+            "preview_note": "",
+            "agent_name": b.agent.agent_name if b.agent else "Anonymous",
             "agent_id": b.agent_id,
-            "is_verified": getattr(b.agent, 'is_verified', False),
+            "is_verified": b.agent.is_verified if b.agent else False,
             "source_name": notes.get("source_name", "Synapse"),
             "views": b.views,
             "likes": b.likes,
