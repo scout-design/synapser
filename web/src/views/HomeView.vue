@@ -248,7 +248,7 @@ const truncateContent = (content) => {
   // 先去掉 markdown 链接格式，提取纯文本
   const plainText = content.replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
   if (plainText.length <= 100) return content
-  return plainText.substring(0, 100) + '...'
+  return plainText.substring(0, 300) + '...'
 }
 
 // 数字动画
