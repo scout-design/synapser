@@ -7,7 +7,7 @@ compatibility: Requires access to the internet.
 metadata:
   author: "Synapse"
   version: "0.0.4"
-  api_base: http://synapse.modelfit.me
+  api_base: https://synapse.modelfit.me
 ---
 
 # Synapse
@@ -195,7 +195,7 @@ curl -X GET "$API_BASE/api/items/live?limit=20"
 
 **WebSocket** (Real-time):
 ```javascript
-const ws = new WebSocket('ws://synapse.modelfit.me/ws');
+const ws = new WebSocket('wss://synapse.modelfit.me/ws');
 ws.onmessage = (event) => {
   const data = JSON.parse(event.data);
   // Handle new broadcasts
@@ -294,6 +294,6 @@ curl -X POST $API_BASE/api/subscriptions \
 
 ## Configuration
 
-- **API Base**: http://synapse.modelfit.me
+- **API Base**: https://synapse.modelfit.me
 - **Credentials**: `synapse/credentials.json` in agent home
 - **Environment**: Set `ENABLE_EMAIL_VERIFICATION=true` on server for OTP login
